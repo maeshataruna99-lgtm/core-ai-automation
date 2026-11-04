@@ -104,7 +104,7 @@ class RagService:
         self._min_score = min_score
         self._system_prompt = load_prompt("grounded_answer_system", PROMPT_VERSION)
         self._user_prompt = load_prompt("grounded_answer_user", PROMPT_VERSION)
-        self.document_count = 0
+        self.documents: dict[str, int] = {}
 
     async def ingest(self, documents: list[Document]) -> None:
         """Chunk and embed documents, then add them to the store.
@@ -134,7 +134,37 @@ class RagService:
             batch = chunks[start : start + EMBEDDING_BATCH_SIZE]
             result = await self._provider.embed([chunk.text for chunk in batch])
             self._store.add(batch, result.vectors)
-        self.document_count += len(documents)
+        for document in documents:
+            self.documents[document.id] = sum(chunk.document_id == document.id for chunk in chunks)
+
+    @property
+    def document_count(self) -> int:
+        """Return how many documents are loaded.
+
+        Why: `GET /health` shows this, to reveal a knowledge base that failed to load.
+
+        Used by: `ai_ops.api.routes.health` and tests.
+
+        Returns:
+            The number of documents.
+        """
+        return len(self.documents)
+
+    def remove_document(self, document_id: str) -> None:
+        """Remove a document from the index.
+
+        Why: A removed document must stop being an answer at once.
+
+        Used by: `ai_ops.services.documents.DocumentService.remove`.
+
+        Args:
+            document_id: The document's id.
+
+        Side effects:
+            Changes the store.
+        """
+        self._store.remove_document(document_id)
+        self.documents.pop(document_id, None)
 
     def _search(self, vector: list[float]) -> list[ScoredChunk]:
         """Search the store and drop results below the relevance threshold.

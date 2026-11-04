@@ -6,6 +6,8 @@ and the settings, and no service code.
 Used by: `ai_ops.api.app.create_app`.
 """
 
+from collections.abc import Callable
+
 import httpx2
 
 from ai_ops.config import Settings
@@ -22,7 +24,9 @@ DEEPSEEK_CHAT_PARAMETERS = {"thinking": {"type": "disabled"}}
 
 
 def build_provider(
-    settings: Settings, transport: httpx2.AsyncBaseTransport | None = None
+    settings: Settings,
+    transport: httpx2.AsyncBaseTransport | None = None,
+    chat_model: Callable[[], str] | None = None,
 ) -> LLMProvider:
     """Create the configured provider.
 
@@ -35,6 +39,7 @@ def build_provider(
         settings: Validated settings. `Settings` guarantees that the real provider's values
             are present, which is why they can be used without further checks.
         transport: Replaces the network. Tests pass an in-memory transport.
+        chat_model: Gives the current model. Defaults to the configured one.
 
     Returns:
         A provider ready to use. The caller must call `aclose` on it at shutdown.
@@ -44,7 +49,7 @@ def build_provider(
     remote = OpenAICompatibleProvider(
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key.get_secret_value(),
-        chat_model=settings.llm_chat_model,
+        chat_model=chat_model or settings.llm_chat_model,
         embedding_model=settings.llm_embedding_model,
         timeout_seconds=settings.llm_timeout_seconds,
         transport=transport,

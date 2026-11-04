@@ -455,7 +455,7 @@ def test_oversized_body_is_rejected_with_413(client):
 
     Used by: pytest.
     """
-    response = client.post("/ask", content=b"x" * 70_000)
+    response = client.post("/ask", content=b"x" * 300_000)
 
     assert response.status_code == 413
     assert response.json()["error"]["request_id"] == response.headers["X-Request-ID"]
@@ -472,7 +472,7 @@ def test_oversized_chunked_body_is_rejected_with_413(client):
 
     def body_parts():
         """Yield a body larger than the limit, in pieces."""
-        for _ in range(8):
+        for _ in range(40):
             yield b"x" * 10_000
 
     response = client.post("/ask", content=body_parts())

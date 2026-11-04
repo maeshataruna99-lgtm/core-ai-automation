@@ -29,6 +29,8 @@ Needs to see the system working quickly and inspect sources, tool calls, and eva
 - Chat
 - Approvals
 - Records
+- Insert Data
+- Settings
 - Diagnostics (tool-call log, latency, token counts)
 - About / limitations
 
@@ -69,6 +71,16 @@ For the MVP, a single page with a sidebar or tabs is sufficient.
 
 ### Records
 - Read-only record viewer by id.
+
+### Insert Data
+- Add a document by typing or from a `.md` or `.txt` file, and remove added ones after a confirmation.
+- Add an order with a form. The model can fill in the form from text, labelled as AI-generated, and nothing is saved until a person presses Save.
+
+### Settings
+- Shows the provider, model, address, embeddings, and whether a key is set, never its value.
+- Choose the model, which applies to the next request.
+- A free connection check runs when the page opens. A test message, which uses tokens, is a separate button.
+- The header shows the provider, model, and the last check's result on every page.
 
 ### Diagnostics
 - Tool-call log with inputs, outcome, and latency.

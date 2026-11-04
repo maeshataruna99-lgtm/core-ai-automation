@@ -8,7 +8,7 @@ Used by: `ai_ops.api.routes` for requests and responses, `ai_ops.api.errors` for
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class HealthResponse(BaseModel):
@@ -199,6 +199,205 @@ class RecordResponse(BaseModel):
     customer: str
     item: str
     status: Literal["processing", "shipped", "delivered", "cancelled"]
+
+
+# Windows treats these names as devices, whatever the file type.
+_RESERVED_NAMES = {"con", "prn", "aux", "nul"} | {
+    f"{device}{number}" for device in ("com", "lpt") for number in range(1, 10)
+}
+
+
+class DocumentName(BaseModel):
+    """A safe file name for an uploaded document.
+
+    Why: The name becomes a file path, so it may only hold letters, digits, dashes, and underscores,
+    with one `.md` or `.txt` ending. That rules out folders, `..`, and hidden files such as `.env`.
+
+    Used by: `DocumentRequest`.
+    """
+
+    name: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.(md|txt)$")
+
+    @field_validator("name")
+    @classmethod
+    def _not_reserved(cls, value: str) -> str:
+        """Reject names that Windows reserves.
+
+        Why: Writing to `con.md` can fail or behave oddly on Windows.
+
+        Used by: Pydantic.
+
+        Args:
+            value: The name.
+
+        Returns:
+            The name, unchanged.
+
+        Raises:
+            ValueError: The name is reserved.
+        """
+        if value.rsplit(".", 1)[0].lower() in _RESERVED_NAMES:
+            raise ValueError("this name is reserved by Windows")
+        return value
+
+
+class DocumentRequest(DocumentName):
+    """Body of `POST /documents`.
+
+    Why: The text is kept exactly as sent, so whitespace is only checked, and is not trimmed.
+
+    Used by: `ai_ops.api.routes.add_document`.
+    """
+
+    text: str = Field(max_length=50_000)
+
+    @field_validator("text")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        """Reject text with nothing in it.
+
+        Why: A blank document has no chunks, so it could never be found.
+
+        Used by: Pydantic.
+
+        Args:
+            value: The text.
+
+        Returns:
+            The text, unchanged.
+
+        Raises:
+            ValueError: The text is blank.
+        """
+        if not value.strip():
+            raise ValueError("the text must not be empty")
+        return value
+
+
+class DocumentResponse(BaseModel):
+    """One document in the knowledge base.
+
+    Why: `removable` tells the page which ones may offer a delete button.
+
+    Used by: `ai_ops.api.routes`.
+    """
+
+    id: str
+    chunks: int
+    removable: bool
+
+
+class RecordRequest(BaseModel):
+    """Body of `POST /records`.
+
+    Why: The same rules apply to any new order. Whitespace is trimmed first, so "   " counts as
+    empty.
+
+    Used by: `ai_ops.api.routes.add_record`.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    id: str = Field(pattern=r"^ORD-[0-9]+$", max_length=32)
+    customer: str = Field(min_length=1, max_length=100)
+    item: str = Field(min_length=1, max_length=100)
+    status: Literal["processing", "shipped", "delivered", "cancelled"]
+
+
+class ExtractRequest(BaseModel):
+    """Body of `POST /records/extract`.
+
+    Why: Each call costs tokens, and sends the text to the provider, so it has a low limit.
+
+    Used by: `ai_ops.api.routes.extract_record`.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class RecordDraftResponse(BaseModel):
+    """A draft order that a model read. Any field can be empty.
+
+    Why: These only fill in a form. Nothing is saved until a person sends `POST /records`.
+
+    Used by: `ExtractResponse`.
+    """
+
+    id: str | None
+    customer: str | None
+    item: str | None
+    status: str | None
+
+
+class ExtractResponse(BaseModel):
+    """Body of a successful `POST /records/extract`.
+
+    Why: `found` is false when no order could be read, which is a normal result.
+
+    Used by: `ai_ops.api.routes.extract_record`.
+    """
+
+    found: bool
+    draft: RecordDraftResponse
+    message: str
+    usage: UsageResponse
+
+
+class LlmSettingsResponse(BaseModel):
+    """Body of `GET /settings/llm`.
+
+    Why: This says whether a key exists, and never holds its value, because the API has no login.
+
+    Used by: `ai_ops.api.routes`.
+    """
+
+    provider: str
+    model: str | None
+    models: list[str]
+    selectable: bool
+    key_configured: bool
+    embeddings: str
+    base_url: str | None
+
+
+class SelectModelRequest(BaseModel):
+    """Body of `PUT /settings/llm`.
+
+    Why: The pattern keeps out line breaks and other text before the name is looked up.
+
+    Used by: `ai_ops.api.routes.select_model`.
+    """
+
+    model: str = Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")
+
+
+class ConnectionCheckRequest(BaseModel):
+    """Body of `POST /settings/llm/check`.
+
+    Why: Sending a message costs tokens, so it must be asked for on purpose.
+
+    Used by: `ai_ops.api.routes.check_connection`.
+    """
+
+    send_message: bool = False
+
+
+class ConnectionCheckResponse(BaseModel):
+    """Body of `POST /settings/llm/check`.
+
+    Why: A failed connection is the answer to the question, so this is a 200 with `connected` false.
+
+    Used by: `ai_ops.api.routes.check_connection`.
+    """
+
+    connected: bool
+    detail: str
+    remote_models: list[str]
+    message_sent: bool
+    model_answered: str | None
+    usage: UsageResponse | None
 
 
 class ErrorDetail(BaseModel):

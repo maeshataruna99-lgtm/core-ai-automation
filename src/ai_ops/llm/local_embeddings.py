@@ -10,6 +10,7 @@ Used by: `ai_ops.llm.factory.build_provider` when `AI_OPS_LLM_PROVIDER=deepseek`
 from ai_ops.llm.mock import MockProvider
 from ai_ops.llm.provider import (
     ChatMessage,
+    ConnectionCheck,
     EmbeddingResult,
     GenerationResult,
     LLMProvider,
@@ -74,6 +75,18 @@ class LocalEmbeddingProvider:
             One vector per text.
         """
         return await self._embedder.embed(texts)
+
+    async def check_connection(self) -> ConnectionCheck:
+        """Check the chat provider.
+
+        Why: Embeddings run locally, so chat is the only part that can fail to connect.
+
+        Used by: `ai_ops.services.llm_settings`, through the `LLMProvider` interface.
+
+        Returns:
+            The chat provider's result.
+        """
+        return await self._chat.check_connection()
 
     async def aclose(self) -> None:
         """Close the chat provider.

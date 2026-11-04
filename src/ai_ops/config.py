@@ -22,7 +22,8 @@ ENV_FILE_VARIABLE = f"{ENV_PREFIX}ENV_FILE"
 DEFAULT_ENV_FILE = ".env"
 # From the DeepSeek API docs, read on 2026-11-04. They list no embeddings endpoint.
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_DEFAULT_MODEL = "deepseek-flash"
+DEEPSEEK_MODELS = ("deepseek-flash", "deepseek-v4-pro")
+DEEPSEEK_DEFAULT_MODEL = DEEPSEEK_MODELS[0]
 LOCAL_EMBEDDING_MODEL = "local-word-hash"
 # Plain HTTP would send a key unencrypted, so it is only allowed to this computer.
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -174,6 +175,7 @@ class Settings(BaseModel):
             full timeout to the worst-case wait.
         knowledge_dir: Directory of documents loaded at startup. A relative path starts from
             the current working directory.
+        uploads_dir: Folder for documents added while the app runs. Git ignores the default.
         rag_chunk_size: Maximum characters per chunk. Large enough to hold a paragraph.
         rag_chunk_overlap: Characters repeated between chunks.
         rag_top_k: Maximum chunks used per question. See `docs/EVALUATION.md` for how the default
@@ -204,6 +206,7 @@ class Settings(BaseModel):
     llm_timeout_seconds: float = Field(default=30.0, gt=0, allow_inf_nan=False)
     llm_max_retries: int = Field(default=2, ge=0, le=5)
     knowledge_dir: Path = Path("data/knowledge")
+    uploads_dir: Path = Path("data/uploads")
     rag_chunk_size: int = Field(default=800, gt=0)
     rag_chunk_overlap: int = Field(default=100, ge=0)
     rag_top_k: int = Field(default=2, gt=0)

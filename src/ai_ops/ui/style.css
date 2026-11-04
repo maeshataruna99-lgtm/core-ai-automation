@@ -115,6 +115,12 @@ p {
   border-bottom: 1px solid var(--border);
 }
 
+.status-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .layout {
   flex: 1;
   min-height: 0;
@@ -218,6 +224,7 @@ label {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   padding: 8px 10px;

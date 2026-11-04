@@ -297,6 +297,7 @@ def test_this_repository_has_no_secrets():
         "my.key",
         "ai_ops.db",
         "data/ai_ops.db",
+        "data/uploads/private.md",
     ],
 )
 def test_secret_files_are_ignored_by_git(name):

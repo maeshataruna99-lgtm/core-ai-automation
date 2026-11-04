@@ -21,6 +21,7 @@ This document records actual design decisions as implementation progresses.
 | Interface (vector store) | Python | `src/ai_ops/retrieval/vector_store.py`, `VectorStore`, `InMemoryVectorStore` | Implemented | Move from in-memory to a vector database |
 | Repository | Python | `src/ai_ops/integrations/records.py`, `RecordRepository`, `SqliteRecordRepository` | Implemented | Keep SQL out of services and tools. Opens one connection per call, so it holds no open resource |
 | Adapter | Python | `src/ai_ops/integrations/outbound.py`, `OutboundService`, `HttpOutboundAdapter`, `StubOutboundService` | Implemented | Isolate the third-party service. The app owns the adapter and closes its HTTP client at shutdown |
+| Interface segregation | Python | `src/ai_ops/integrations/records.py`, `RecordRepository`, `RecordInserter` | Implemented | The agent's tools get an interface with no insert, so only a person can add a record |
 | Schema migrations | Python, SQL | `src/ai_ops/integrations/database.py`, `apply_migrations`; `src/ai_ops/integrations/migrations/` | Implemented | Numbered SQL files, tracked by `PRAGMA user_version`, each applied in one transaction |
 | Safe error marker | Python | `src/ai_ops/integrations/errors.py`, `IntegrationError` | Implemented | Only errors of this type show their message to a client. All other exception text stays in the log |
 | Tool registry | Python | `src/ai_ops/agents/registry.py`, `ToolRegistry`, `Tool` | Implemented | Typed tools for the agent. One gate validates, logs, and sends writes to approval |

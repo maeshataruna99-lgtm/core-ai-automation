@@ -13,6 +13,7 @@ from typing import TypeVar
 
 from ai_ops.llm.provider import (
     ChatMessage,
+    ConnectionCheck,
     EmbeddingResult,
     GenerationResult,
     LLMError,
@@ -133,6 +134,18 @@ class RetryingProvider:
             LLMError: The call failed after any retries.
         """
         return await self._with_retries(lambda: self._inner.embed(texts))
+
+    async def check_connection(self) -> ConnectionCheck:
+        """Check the wrapped provider, with no retries.
+
+        Why: A person is waiting for the answer, and retries would hide a real failure.
+
+        Used by: `ai_ops.services.llm_settings`, through the `LLMProvider` interface.
+
+        Returns:
+            The wrapped provider's result.
+        """
+        return await self._inner.check_connection()
 
     async def aclose(self) -> None:
         """Close the wrapped provider.

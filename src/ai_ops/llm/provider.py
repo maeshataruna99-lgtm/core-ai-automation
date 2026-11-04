@@ -101,6 +101,63 @@ class EmbeddingResult:
     usage: Usage
 
 
+@dataclass
+class ModelSelection:
+    """The model to use, which can change while the app runs.
+
+    Why: The provider reads this for each request, so a change on the Settings page applies to the
+    next
+    request, with no need to rebuild the provider.
+
+    Used by: `ai_ops.api.app.create_app`, `ai_ops.llm.openai_compatible`, and
+    `ai_ops.services.llm_settings`.
+    """
+
+    current: str | None
+
+
+@dataclass(frozen=True)
+class ConnectionCheck:
+    """The result of checking that a provider can be reached.
+
+    Why: A failed check is the answer to the question, so it is data and not an exception.
+
+    Used by: returned by `LLMProvider.check_connection`.
+    """
+
+    ok: bool
+    detail: str
+    models: tuple[str, ...] = ()
+
+
+def describe_http_failure(status: int | None) -> str:
+    """Say what a failure means, and what to do about it.
+
+    Why: "HTTP 402" does not help a person. These follow DeepSeek's documented error codes, and
+    they are
+    fixed texts, so a response body that echoes a key can never reach the page.
+
+    Used by: `ai_ops.llm.openai_compatible` and `ai_ops.services.llm_settings`.
+
+    Args:
+        status: The HTTP status, or None if there was no response.
+
+    Returns:
+        A message for a person.
+    """
+    if status is None:
+        return "Could not reach the provider or it did not answer in time. Check your network."
+    if status == 401:
+        return "The API key was rejected. Check the key in your .env file, then restart the API."
+    if status == 402:
+        return "The account has no balance left. Top up with the provider, then try again."
+    if status == 429:
+        return "The rate limit was reached. Wait a moment, then try again."
+    if status >= 500:
+        return f"The provider has a problem on its side (HTTP {status}). Try again later."
+    return f"The provider refused the request (HTTP {status})."
+
+
 class LLMError(Exception):
     """Base class for failures of an LLM call.
 
@@ -134,19 +191,23 @@ class LLMProviderError(LLMError):
     Used by: raised in `ai_ops.llm.openai_compatible`, mapped in `ai_ops.api.errors`.
     """
 
-    def __init__(self, message: str, *, retryable: bool = False) -> None:
-        """Store the message and whether a retry could help.
+    def __init__(self, message: str, *, retryable: bool = False, status: int | None = None) -> None:
+        """Store the message, whether a retry could help, and the HTTP status.
 
-        Why: This overrides the class default, because retrying depends on the failure.
+        Why: This overrides the class default, because retrying depends on the failure. The status
+        lets
+        the Settings page say what to do.
 
         Used by: `ai_ops.llm.openai_compatible`.
 
         Args:
             message: Safe description of the failure.
             retryable: Whether trying again could succeed.
+            status: The HTTP status, if there was a response.
         """
         super().__init__(message)
         self.retryable = retryable
+        self.status = status
 
 
 class LLMProvider(Protocol):
@@ -194,6 +255,20 @@ class LLMProvider(Protocol):
 
         Raises:
             LLMError: The call failed.
+        """
+        ...
+
+    async def check_connection(self) -> ConnectionCheck:
+        """Check that the provider can be reached with the configured key.
+
+        Why: The Settings page needs a real answer, and this must not cost tokens, since it runs
+        each
+        time that page opens.
+
+        Used by: `ai_ops.services.llm_settings`.
+
+        Returns:
+            The result. Failures are in the result, and they are not raised.
         """
         ...
 

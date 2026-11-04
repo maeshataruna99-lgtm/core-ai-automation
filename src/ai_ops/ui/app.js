@@ -20,7 +20,9 @@ const PAGES = [
   { id: "tickets", label: "Tickets", render: renderTickets },
   { id: "approvals", label: "Approvals", render: renderApprovals },
   { id: "records", label: "Records", render: renderRecords },
+  { id: "insert", label: "Insert Data", render: renderInsert },
   { id: "diagnostics", label: "Diagnostics", render: renderDiagnostics },
+  { id: "settings", label: "Settings", render: renderSettings },
   { id: "about", label: "About", render: renderAbout },
 ];
 
@@ -40,6 +42,14 @@ const TICKET_STATUS = {
   rejected: { text: "Rejected, not sent", tone: "" },
   send_failed: { text: "Sending failed, can be retried", tone: "error" },
 };
+
+const PROVIDER_NAMES = {
+  mock: "Mock provider",
+  deepseek: "DeepSeek",
+  openai_compatible: "OpenAI-compatible provider",
+};
+
+const ORDER_STATUSES = ["processing", "shipped", "delivered", "cancelled"];
 
 const STOP_REASON_NOTICE = {
   max_steps: "The agent reached its step limit and did not finish.",
@@ -144,7 +154,8 @@ async function callApi(path, { method = "GET", body, signal, background = false 
     });
     result.status = response.status;
     result.requestId = response.headers.get("X-Request-ID");
-    const data = await response.json();
+    // A 204 has no body, so reading it as JSON would make a success look like a network failure.
+    const data = response.status === 204 ? null : await response.json();
     if (response.ok) {
       result.ok = true;
       result.data = data;
@@ -802,6 +813,442 @@ function renderRecords() {
   ];
 }
 
+/**
+ * Build a labelled text input.
+ * Why: Keeps each label tied to its input, for keyboard and screen reader users.
+ * Used by: the Insert Data page.
+ * @param {string} id The input's id.
+ * @param {string} label The label.
+ * @param {object} [properties] Extra input properties.
+ * @returns {{field: HTMLElement, input: HTMLInputElement}} The field and its input.
+ */
+function labelledInput(id, label, properties = {}) {
+  const input = el("input", { id, ...properties });
+  return { field: el("div", { class: "field" }, el("label", { htmlFor: id }, label), input), input };
+}
+
+/**
+ * Turn a file's name into one the API accepts.
+ * Why: Files often have spaces or other characters, and a person should not have to rename them. The
+ * API still checks the result, so this is only a convenience.
+ * Used by: the document form.
+ * @param {string} fileName The original name.
+ * @returns {string} The suggested name.
+ */
+function suggestDocumentName(fileName) {
+  const dot = fileName.lastIndexOf(".");
+  const stem = (dot > 0 ? fileName.slice(0, dot) : fileName).replace(/[^A-Za-z0-9_-]+/g, "-");
+  const ending = dot > 0 ? fileName.slice(dot).toLowerCase() : ".md";
+  return `${stem.replace(/^[-_]+/, "").slice(0, 64) || "document"}${ending}`;
+}
+
+/**
+ * Build the document half of the Insert Data page.
+ * Why: Adding a document makes it searchable at once. Files are read in the browser and sent as text,
+ * so there is no separate upload path to secure.
+ * Used by: `renderInsert`.
+ * @returns {HTMLElement[]} The elements.
+ */
+function documentSection() {
+  const area = el("div", {});
+  const list = el("div", {}, el("p", { class: "hint" }, "Loading…"));
+  const submit = el("button", { type: "button", class: "button button-primary" }, "Add document");
+  const name = labelledInput("document-name", "File name", { placeholder: "holiday-hours.md", maxLength: 67 });
+  let send;
+  const { field, input } = textField({ id: "document-text", label: "Text", limit: 50000, onSend: () => send() });
+  const file = el("input", { id: "document-file", type: "file", accept: ".md,.txt" });
+
+  const drawList = async () => {
+    const result = await callApi("/documents", { background: true });
+    if (!result.ok) {
+      list.replaceChildren(notice("error", result.problem));
+      return;
+    }
+    list.replaceChildren(
+      el(
+        "div",
+        { class: "table-wrap" },
+        el(
+          "table",
+          {},
+          el("thead", {}, el("tr", {}, ...["Document", "Chunks", ""].map((label) => el("th", {}, label)))),
+          el(
+            "tbody",
+            {},
+            ...result.data.map((item) => {
+              const remove = el("button", { type: "button", class: "button" }, "Remove");
+              remove.onclick = async () => {
+                const confirmed = await confirmAction(
+                  "Remove this document?",
+                  `${item.id} will be deleted from this computer, and can no longer be found.`,
+                  "Yes, remove",
+                );
+                if (!confirmed) return;
+                const removed = await callApi(`/documents/${encodeURIComponent(item.id.replace("uploads/", ""))}`, {
+                  method: "DELETE",
+                });
+                area.replaceChildren(
+                  removed.ok
+                    ? notice("success", `The API confirmed that ${item.id} was removed.`)
+                    : notice("error", removed.problem),
+                );
+                drawList();
+                refreshConnection();
+              };
+              return el(
+                "tr",
+                {},
+                el("td", { class: "mono" }, item.id),
+                el("td", {}, String(item.chunks)),
+                el("td", {}, item.removable ? remove : el("span", { class: "hint" }, "Part of the project")),
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  };
+
+  file.onchange = async () => {
+    const chosen = file.files[0];
+    if (!chosen) return;
+    input.value = await chosen.text();
+    input.dispatchEvent(new Event("input"));
+    name.input.value = suggestDocumentName(chosen.name);
+  };
+
+  send = requestRunner({
+    area,
+    submit,
+    send: async (signal) => {
+      const body = { name: name.input.value.trim(), text: input.value };
+      const result = await callApi("/documents", { method: "POST", body, signal });
+      if (result.ok) {
+        area.replaceChildren(
+          notice("success", `The API confirmed that ${result.data.id} was added, in ${result.data.chunks} chunk(s). You can ask about it now.`),
+        );
+        name.input.value = "";
+        input.value = "";
+        file.value = "";
+        input.dispatchEvent(new Event("input"));
+        drawList();
+        refreshConnection();
+      } else {
+        area.replaceChildren(notice(result.cancelled ? "warning" : "error", result.problem));
+      }
+      reveal(area);
+    },
+  });
+  submit.onclick = send;
+  drawList();
+  return [
+    el("h3", { class: "section-title" }, "Add a document"),
+    el(
+      "p",
+      { class: "hint" },
+      "Stored on this computer in a folder that Git ignores. When a question matches it, that part of the text is sent to the model provider, so do not add anything you may not share.",
+    ),
+    el(
+      "div",
+      { class: "form" },
+      el("div", { class: "field" }, el("label", { htmlFor: "document-file" }, "Read from a file (optional, .md or .txt)"), file),
+      name.field,
+      el("span", { class: "hint" }, "Letters, numbers, dashes, and underscores, ending in .md or .txt."),
+      field,
+      el("div", { class: "actions" }, submit),
+    ),
+    area,
+    list,
+  ];
+}
+
+/**
+ * Build the order half of the Insert Data page.
+ * Why: The model only fills in the form. Nothing is stored until a person reads it and presses Save,
+ * because a model can misread text, and pasted text may come from outside.
+ * Used by: `renderInsert`.
+ * @returns {HTMLElement[]} The elements.
+ */
+function orderSection() {
+  const extractArea = el("div", {});
+  const saveArea = el("div", {});
+  const list = el("div", {}, el("p", { class: "hint" }, "Loading…"));
+  const orderId = labelledInput("order-id", "Order id", { placeholder: "ORD-2001", maxLength: 32 });
+  const customer = labelledInput("order-customer", "Customer", { maxLength: 100 });
+  const item = labelledInput("order-item", "Item", { maxLength: 100 });
+  const status = el(
+    "select",
+    { id: "order-status" },
+    ...ORDER_STATUSES.map((value) => el("option", { value }, value)),
+  );
+  const save = el("button", { type: "button", class: "button button-primary" }, "Save order");
+  const read = el("button", { type: "button", class: "button" }, "Fill the form with AI");
+  let sendRead;
+  const { field: textBox, input: freeText } = textField({
+    id: "order-text",
+    label: "Text that describes an order",
+    limit: 2000,
+    onSend: () => sendRead(),
+  });
+
+  const drawList = async () => {
+    const result = await callApi("/records", { background: true });
+    if (!result.ok) {
+      list.replaceChildren(notice("error", result.problem));
+      return;
+    }
+    list.replaceChildren(
+      el(
+        "div",
+        { class: "table-wrap" },
+        el(
+          "table",
+          {},
+          el("thead", {}, el("tr", {}, ...["Order", "Customer", "Item", "Status"].map((label) => el("th", {}, label)))),
+          el(
+            "tbody",
+            {},
+            ...result.data.map((record) =>
+              el(
+                "tr",
+                {},
+                el("td", { class: "mono" }, record.id),
+                el("td", {}, record.customer),
+                el("td", {}, record.item),
+                el("td", {}, record.status),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  };
+
+  sendRead = requestRunner({
+    area: extractArea,
+    submit: read,
+    send: async (signal) => {
+      const result = await callApi("/records/extract", {
+        method: "POST",
+        body: { text: freeText.value.trim() },
+        signal,
+      });
+      if (!result.ok) {
+        extractArea.replaceChildren(notice(result.cancelled ? "warning" : "error", result.problem));
+        return;
+      }
+      if (!result.data.found) {
+        extractArea.replaceChildren(notice("warning", result.data.message));
+        return;
+      }
+      const { draft } = result.data;
+      orderId.input.value = draft.id ?? "";
+      customer.input.value = draft.customer ?? "";
+      item.input.value = draft.item ?? "";
+      if (draft.status) status.value = draft.status;
+      extractArea.replaceChildren(
+        el(
+          "p",
+          { class: "notice notice-info", role: "status" },
+          aiLabel(),
+          " The form was filled in by the model, and nothing has been saved. Check each field, then press Save order.",
+        ),
+      );
+    },
+  });
+  read.onclick = sendRead;
+
+  const sendSave = requestRunner({
+    area: saveArea,
+    submit: save,
+    send: async (signal) => {
+      const body = {
+        id: orderId.input.value.trim(),
+        customer: customer.input.value.trim(),
+        item: item.input.value.trim(),
+        status: status.value,
+      };
+      const result = await callApi("/records", { method: "POST", body, signal });
+      if (result.ok) {
+        saveArea.replaceChildren(notice("success", `The API confirmed that order ${result.data.id} was saved.`));
+        for (const { input } of [orderId, customer, item]) input.value = "";
+        drawList();
+      } else {
+        saveArea.replaceChildren(notice(result.cancelled ? "warning" : "error", result.problem));
+      }
+      reveal(saveArea);
+    },
+  });
+  save.onclick = sendSave;
+  drawList();
+  return [
+    el("h3", { class: "section-title" }, "Add an order"),
+    el("p", { class: "hint" }, "Type the details, or let the model read them from text. This text is sent to the model provider."),
+    el(
+      "div",
+      { class: "form" },
+      textBox,
+      exampleButtons(["Order ORD-2001 for Sample Customer D: 40 valves, already shipped."], freeText),
+      el("div", { class: "actions" }, read),
+      extractArea,
+      orderId.field,
+      customer.field,
+      item.field,
+      el("div", { class: "field" }, el("label", { htmlFor: "order-status" }, "Status"), status),
+      el("div", { class: "actions" }, save),
+    ),
+    saveArea,
+    list,
+  ];
+}
+
+/** Build the Insert Data page. Why: Add documents and orders without a restart. Used by: PAGES. */
+function renderInsert() {
+  return [
+    el("h2", {}, "Insert data"),
+    el("p", { class: "lead" }, "Add documents the assistant can answer from, and orders it can look up."),
+    ...documentSection(),
+    ...orderSection(),
+  ];
+}
+
+/**
+ * Show the result of a connection check, on the Settings page and in the header.
+ * Why: The answer must be visible from any page, and it must match what the API reported.
+ * Used by: `renderSettings` and startup.
+ * @param {object} report The API response.
+ */
+function showLlmStatus(report) {
+  const badgeElement = document.querySelector("#llm-status");
+  badgeElement.textContent = report.connected ? "Provider OK" : "Provider problem";
+  badgeElement.className = `badge badge-${report.connected ? "success" : "error"}`;
+}
+
+/** Build the Settings page. Why: See the model and whether it really works. Used by: PAGES. */
+function renderSettings() {
+  const details = el("div", {}, el("p", { class: "hint" }, "Loading…"));
+  const statusArea = el("div", {});
+  const check = el("button", { type: "button", class: "button" }, "Check connection");
+  const testMessage = el("button", { type: "button", class: "button" }, "Send a test message");
+
+  const runCheck = (sendMessage) =>
+    requestRunner({
+      area: statusArea,
+      submit: sendMessage ? testMessage : check,
+      send: async (signal) => {
+        const result = await callApi("/settings/llm/check", {
+          method: "POST",
+          body: { send_message: sendMessage },
+          signal,
+        });
+        if (!result.ok) {
+          statusArea.replaceChildren(notice(result.cancelled ? "warning" : "error", result.problem));
+          return;
+        }
+        const report = result.data;
+        showLlmStatus(report);
+        // `el` skips empty values. `replaceChildren` would show `false` as text.
+        statusArea.replaceChildren(
+          el(
+            "div",
+            {},
+            notice(report.connected ? "success" : "error", report.detail),
+            report.message_sent &&
+              el(
+                "p",
+                { class: "hint" },
+                `Answered by ${report.model_answered}, using ${report.usage.input_tokens} input and ${report.usage.output_tokens} output tokens.`,
+              ),
+          ),
+        );
+        if (report.remote_models.length) drawDetails();
+      },
+    });
+
+  const drawDetails = async () => {
+    const result = await callApi("/settings/llm", { background: true });
+    if (!result.ok) {
+      details.replaceChildren(notice("error", result.problem));
+      return;
+    }
+    const data = result.data;
+    const facts = el(
+      "dl",
+      { class: "facts" },
+      el("dt", {}, "Provider"),
+      el("dd", {}, PROVIDER_NAMES[data.provider] ?? data.provider),
+      el("dt", {}, "Model"),
+      el("dd", { id: "current-model" }, data.model ?? "None, because the mock is not a real model"),
+      el("dt", {}, "API key"),
+      el("dd", {}, data.key_configured ? "Set in your .env file. It is never shown here." : "Not set"),
+      el("dt", {}, "Address"),
+      el("dd", { class: "mono" }, data.base_url ?? "None, it runs offline"),
+      el("dt", {}, "Embeddings"),
+      el("dd", {}, data.provider === "deepseek" ? "Local word matching, because DeepSeek lists no embeddings API" : data.embeddings),
+    );
+    const parts = [el("article", { class: "card" }, facts)];
+    if (data.selectable) {
+      const select = el(
+        "select",
+        { id: "model-select" },
+        ...data.models.map((model) => el("option", { value: model, selected: model === data.model }, model)),
+      );
+      const save = el("button", { type: "button", class: "button button-primary" }, "Use this model");
+      const saved = el("div", {});
+      save.onclick = async () => {
+        save.disabled = true;
+        const response = await callApi("/settings/llm", { method: "PUT", body: { model: select.value } });
+        save.disabled = false;
+        if (response.ok) {
+          await drawDetails();
+          statusArea.replaceChildren(
+            notice("success", `The API confirmed that ${response.data.model} is now in use, and will stay selected after a restart.`),
+          );
+          refreshConnection();
+        } else {
+          saved.replaceChildren(notice("error", response.problem));
+        }
+      };
+      parts.push(
+        el(
+          "div",
+          { class: "form" },
+          el("div", { class: "field" }, el("label", { htmlFor: "model-select" }, "Model"), select),
+          el("div", { class: "actions" }, save),
+          saved,
+        ),
+      );
+    }
+    if (data.provider === "mock") {
+      parts.push(
+        notice(
+          "info",
+          "To use DeepSeek, copy .env.example to .env, paste your key after AI_OPS_LLM_API_KEY=, and restart the API. A key cannot be entered on this page, because this API has no login.",
+        ),
+      );
+    }
+    details.replaceChildren(...parts);
+  };
+
+  check.onclick = runCheck(false);
+  testMessage.onclick = runCheck(true);
+  drawDetails();
+  check.onclick();
+  return [
+    el("h2", {}, "Settings"),
+    el("p", { class: "lead" }, "Which model answers, and whether the connection really works."),
+    details,
+    el("h3", { class: "section-title" }, "Connection"),
+    el(
+      "p",
+      { class: "hint" },
+      "Check connection is free, and proves that the address and key work. It cannot see an empty balance: only a test message can, and that uses a few tokens.",
+    ),
+    el("div", { class: "actions" }, check, testMessage),
+    el("div", { style: "margin-top: 12px" }, statusArea),
+  ];
+}
+
 /** Build the Diagnostics page. Why: What each request did and cost. Used by: PAGES. */
 function renderDiagnostics() {
   const rows = session.requests.map((entry) =>
@@ -859,7 +1306,7 @@ function renderAbout() {
   const limits = [
     "This is an educational project with synthetic data. It has not been deployed to production.",
     "With the mock provider, answers only repeat your text. Retrieval, tools, approvals, and workflows are real.",
-    "It has not yet been tested with a real LLM, so answer quality and resistance to prompt injection are not verified.",
+    "It has only had a small evaluation with one real model, on synthetic data. See docs/EVALUATION.md for the limits.",
     "There is no login. Anyone who can reach the API can read orders and approve actions, so keep it on this computer.",
     "Approvals and workflow progress are lost when the API restarts. Orders are kept.",
     "Messages go through a stub by default, so nothing leaves the application.",
@@ -944,8 +1391,10 @@ async function refreshConnection() {
   try {
     const response = await fetch("/health");
     const health = await response.json();
-    const provider = health.provider === "mock" ? "Mock provider" : "Real provider";
-    badgeElement.textContent = `${provider} • ${health.documents} documents • Connected`;
+    const provider = PROVIDER_NAMES[health.provider] ?? health.provider;
+    const settings = await (await fetch("/settings/llm")).json();
+    const model = settings.model ? ` • ${settings.model}` : "";
+    badgeElement.textContent = `${provider}${model} • ${health.documents} documents • Connected`;
     badgeElement.className = "badge badge-success";
     mockNotice.hidden = health.provider !== "mock";
   } catch {
@@ -959,4 +1408,8 @@ window.addEventListener("hashchange", () => showPage(true));
 showPage(false);
 refreshConnection();
 refreshPendingCount();
+// This request is free, and only runs once per page load, so it costs nothing.
+callApi("/settings/llm/check", { method: "POST", body: {}, background: true }).then((result) => {
+  if (result.ok) showLlmStatus(result.data);
+});
 setInterval(refreshConnection, 15_000);

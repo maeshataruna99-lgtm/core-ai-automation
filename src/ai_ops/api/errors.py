@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from ai_ops.api.schemas import ErrorBody, ErrorDetail, ErrorResponse
-from ai_ops.integrations.records import RecordNotFoundError
+from ai_ops.integrations.records import RecordExistsError, RecordNotFoundError
 from ai_ops.llm.provider import LLMError, LLMTimeoutError
 from ai_ops.logging import LOGGER_NAME, request_id_var
 from ai_ops.services.approval import (
@@ -25,6 +25,8 @@ from ai_ops.services.approval import (
     ApprovalConflictError,
     ApprovalNotFoundError,
 )
+from ai_ops.services.documents import DocumentExistsError, DocumentNotFoundError
+from ai_ops.services.llm_settings import ModelNotSelectableError, UnknownModelError
 from ai_ops.services.workflow import WorkflowConflictError
 
 logger = logging.getLogger(f"{LOGGER_NAME}.api")
@@ -141,6 +143,11 @@ _SERVICE_ERRORS: dict[type[Exception], tuple[int, str]] = {
     ActionFailedError: (502, "action_failed"),
     WorkflowConflictError: (409, "ticket_conflict"),
     RecordNotFoundError: (404, "record_not_found"),
+    RecordExistsError: (409, "record_exists"),
+    DocumentExistsError: (409, "document_exists"),
+    DocumentNotFoundError: (404, "document_not_found"),
+    ModelNotSelectableError: (409, "model_not_selectable"),
+    UnknownModelError: (422, "unknown_model"),
 }
 
 

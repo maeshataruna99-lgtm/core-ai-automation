@@ -119,6 +119,7 @@ class Server:
             AI_OPS_PORT=str(self.port),
             AI_OPS_KNOWLEDGE_DIR=str(REPO / "data" / "knowledge"),
             AI_OPS_DATABASE_PATH=str(directory / "demo.db"),
+            AI_OPS_UPLOADS_DIR=str(directory / "uploads"),
         )
         self.process: subprocess.Popen | None = None
         self.log_file = None

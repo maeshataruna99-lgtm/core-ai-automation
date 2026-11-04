@@ -12,6 +12,7 @@ import re
 
 from ai_ops.llm.provider import (
     ChatMessage,
+    ConnectionCheck,
     EmbeddingResult,
     GenerationResult,
     ToolCall,
@@ -161,6 +162,20 @@ class MockProvider:
         usage = Usage(input_tokens=sum(len(_words(text)) for text in texts), output_tokens=0)
         return EmbeddingResult(
             vectors=[_embed_text(text) for text in texts], model=MODEL_NAME, usage=usage
+        )
+
+    async def check_connection(self) -> ConnectionCheck:
+        """Report that there is nothing to connect to.
+
+        Why: The result must not look like a tested connection to a real service.
+
+        Used by: `ai_ops.services.llm_settings`, through the `LLMProvider` interface.
+
+        Returns:
+            A successful result that says it is the mock.
+        """
+        return ConnectionCheck(
+            ok=True, detail="Mock provider: it runs offline, with no connection."
         )
 
     async def aclose(self) -> None:

@@ -8,12 +8,14 @@ Used by: `ai_ops.llm.factory.build_provider` when `AI_OPS_LLM_PROVIDER=openai_co
 """
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 import httpx2
 
 from ai_ops.llm.provider import (
     ChatMessage,
+    ConnectionCheck,
     EmbeddingResult,
     GenerationResult,
     LLMProviderError,
@@ -21,6 +23,7 @@ from ai_ops.llm.provider import (
     ToolCall,
     ToolSchema,
     Usage,
+    describe_http_failure,
 )
 
 # 408 and 429 mean "try later". Server errors are usually temporary.
@@ -92,7 +95,7 @@ class OpenAICompatibleProvider:
         self,
         base_url: str,
         api_key: str,
-        chat_model: str,
+        chat_model: str | Callable[[], str],
         embedding_model: str,
         timeout_seconds: float,
         transport: httpx2.AsyncBaseTransport | None = None,
@@ -107,14 +110,15 @@ class OpenAICompatibleProvider:
         Args:
             base_url: API root, such as `https://api.example.com/v1`.
             api_key: Secret key, sent as a bearer token.
-            chat_model: Model name for `generate`.
+            chat_model: Model name for `generate`, or a function that returns it, so that the
+                Settings page can change the model while the app runs.
             embedding_model: Model name for `embed`.
             timeout_seconds: Limit for each network step of one attempt.
             transport: Replaces the network. Tests pass an in-memory transport.
             extra_chat_parameters: Vendor-specific fields added to each chat request.
         """
         self._extra_chat_parameters = extra_chat_parameters or {}
-        self._chat_model = chat_model
+        self._chat_model = chat_model if callable(chat_model) else lambda: chat_model
         self._embedding_model = embedding_model
         self._client = httpx2.AsyncClient(
             base_url=base_url,
@@ -157,7 +161,7 @@ class OpenAICompatibleProvider:
         status = response.status_code
         if status >= 400:
             retryable = status in _RETRYABLE_STATUSES or status >= 500
-            raise LLMProviderError(f"HTTP {status} from {path}", retryable=retryable)
+            raise LLMProviderError(f"HTTP {status} from {path}", retryable=retryable, status=status)
         try:
             return response.json()
         except ValueError:
@@ -186,7 +190,7 @@ class OpenAICompatibleProvider:
             LLMProviderError: The call failed or the response has an unexpected shape.
         """
         payload: dict[str, Any] = {
-            "model": self._chat_model,
+            "model": self._chat_model(),
             "messages": [_message_to_wire(message) for message in messages],
             **self._extra_chat_parameters,
         }
@@ -245,6 +249,35 @@ class OpenAICompatibleProvider:
             )
         except (KeyError, TypeError):
             raise LLMProviderError("Unexpected response from /embeddings") from None
+
+    async def check_connection(self) -> ConnectionCheck:
+        """Ask the provider for its models.
+
+        Why: `GET /models` uses no tokens, and it needs a valid key, so it proves that the address
+        and
+        the key work. Failures use fixed texts, so that a response body can never reach the page.
+
+        Used by: `ai_ops.services.llm_settings`, through the `LLMProvider` interface.
+
+        Returns:
+            The result, with the model names on success.
+
+        Side effects:
+            Sends a network request.
+        """
+        try:
+            response = await self._client.get("/models")
+        except httpx2.TransportError:
+            return ConnectionCheck(ok=False, detail=describe_http_failure(None))
+        if response.status_code >= 400:
+            return ConnectionCheck(ok=False, detail=describe_http_failure(response.status_code))
+        try:
+            models = tuple(item["id"] for item in response.json()["data"])
+        except (ValueError, KeyError, TypeError):
+            return ConnectionCheck(ok=False, detail="The provider sent an unexpected response.")
+        return ConnectionCheck(
+            ok=True, detail="Connected. The API key was accepted.", models=models
+        )
 
     async def aclose(self) -> None:
         """Close the HTTP client and its open connections.

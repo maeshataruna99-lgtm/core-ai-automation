@@ -21,6 +21,12 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -ContentType appli
 | GET | `/approvals` | List all approvals, newest first |
 | POST | `/approvals/{approval_id}` | Approve or reject a pending action |
 | GET | `/records/{record_id}` | Read one order |
+| GET, POST | `/records` | List orders, or add one |
+| POST | `/records/extract` | Read a draft order from text with the model. This saves nothing |
+| GET, POST | `/documents` | List knowledge base documents, or add one |
+| DELETE | `/documents/{name}` | Remove an added document |
+| GET, PUT | `/settings/llm` | See the provider, or choose the model |
+| POST | `/settings/llm/check` | Check that the provider really works |
 
 ## Check the API
 
@@ -119,6 +125,69 @@ curl http://127.0.0.1:8000/records/ORD-1002
 
 The sample orders are `ORD-1001`, `ORD-1002`, and `ORD-1003`.
 
+## Insert data
+
+Add a document, which can be found at once. It is stored in `data/uploads/`, which Git ignores. `name` may hold letters, digits, dashes, and underscores, and must end in `.md` or `.txt`. `text` can be up to 50,000 characters. A repeated name returns a 409, and nothing is replaced.
+
+```bash
+curl -X POST http://127.0.0.1:8000/documents -H "Content-Type: application/json" -d '{"name": "holiday-hours.md", "text": "The warehouse closes on Friday afternoons."}'
+```
+
+```json
+{"id": "uploads/holiday-hours.md", "chunks": 1, "removable": true}
+```
+
+Add an order. A repeated id returns a 409. To change an existing order, use the agent and an approval.
+
+```bash
+curl -X POST http://127.0.0.1:8000/records -H "Content-Type: application/json" -d '{"id": "ORD-2001", "customer": "Sample Customer D", "item": "Valves", "status": "processing"}'
+```
+
+Read a draft from text. This sends the text to the provider, and saves nothing. `found` is `false` when no order could be read, which is what the mock provider always gives. Any field in `draft` can be `null`.
+
+```bash
+curl -X POST http://127.0.0.1:8000/records/extract -H "Content-Type: application/json" -d '{"text": "Order ORD-2001 for Sample Customer D: 40 valves, already shipped."}'
+```
+
+## Settings
+
+`GET /settings/llm` shows the provider and model, and whether a key is set. It never shows the key.
+
+```json
+{
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "models": ["deepseek-flash", "deepseek-v4-pro"],
+  "selectable": true,
+  "key_configured": true,
+  "embeddings": "local-word-hash",
+  "base_url": "https://api.deepseek.com"
+}
+```
+
+Choose a model. The next model call uses it, and it stays selected after a restart.
+
+```bash
+curl -X PUT http://127.0.0.1:8000/settings/llm -H "Content-Type: application/json" -d '{"model": "deepseek-v4-pro"}'
+```
+
+Check the connection. This is free, and calls the provider's model list. Add `"send_message": true` to also send one short message, which uses a few tokens, and is the only way to detect an empty balance. A failure is still a 200, with `connected` set to `false`.
+
+```bash
+curl -X POST http://127.0.0.1:8000/settings/llm/check -H "Content-Type: application/json" -d '{}'
+```
+
+```json
+{
+  "connected": false,
+  "detail": "The API key was rejected. Check the key in your .env file, then restart the API.",
+  "remote_models": [],
+  "message_sent": false,
+  "model_answered": null,
+  "usage": null
+}
+```
+
 ## Run the ticket workflow
 
 ```bash
@@ -155,10 +224,10 @@ Every error has the same shape, and `request_id` matches the `X-Request-ID` resp
 
 | Status | Code | Meaning |
 |---|---|---|
-| 404 | `record_not_found`, `approval_not_found`, `not_found` | The record, approval, or route does not exist |
-| 409 | `approval_conflict`, `ticket_conflict` | A decision was reversed, or a ticket id was reused with different text |
-| 413 | Depends on the Python version | The body is larger than 64 KiB |
-| 422 | `validation_error` | The input is invalid |
+| 404 | `record_not_found`, `approval_not_found`, `document_not_found`, `not_found` | The record, approval, document, or route does not exist |
+| 409 | `approval_conflict`, `ticket_conflict`, `record_exists`, `document_exists`, `model_not_selectable` | A decision was reversed, an id or name is already used, or this provider's model cannot be changed |
+| 413 | Depends on the Python version | The body is larger than 256 KiB |
+| 422 | `validation_error`, `unknown_model` | The input is invalid, or the model is not on the list |
 | 500 | `internal_error` | Unexpected failure. Details are only in the logs |
 | 502 | `upstream_error`, `action_failed` | The LLM provider failed, or an approved action failed |
 | 504 | `upstream_timeout` | The LLM provider did not answer in time |

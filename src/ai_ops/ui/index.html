@@ -21,7 +21,10 @@
     <a class="skip-link" href="#page">Skip to content</a>
     <header class="top-bar">
       <h1>AI Operations Assistant</h1>
-      <p id="connection" class="badge" role="status">Connecting…</p>
+      <div class="status-group">
+        <p id="llm-status" class="badge" role="status">Provider not checked</p>
+        <p id="connection" class="badge" role="status">Connecting…</p>
+      </div>
     </header>
     <p id="mock-notice" class="notice notice-warning" hidden>
       <strong>Mock provider.</strong> Answers only repeat your text, so they are not real. Retrieval,

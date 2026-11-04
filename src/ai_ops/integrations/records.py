@@ -13,6 +13,7 @@ Used by: `ai_ops.agents.tools`, `ai_ops.services.workflow`, `ai_ops.api.routes`,
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from sqlite3 import IntegrityError
 from typing import Literal, Protocol
 
 from ai_ops.integrations.database import apply_migrations, connect
@@ -28,6 +29,15 @@ class RecordNotFoundError(IntegrationError):
 
     Used by: raised by `update_status` and `ai_ops.api.routes.get_record`, mapped to a 404 in
     `ai_ops.api.errors`. An approval that hits it ends as `failed`.
+    """
+
+
+class RecordExistsError(IntegrationError):
+    """An order with this id already exists.
+
+    Why: Inserting must not overwrite an order. Changes go through an approval.
+
+    Used by: raised by `add`, mapped to a 409 in `ai_ops.api.errors`.
     """
 
 
@@ -86,6 +96,43 @@ class RecordRepository(Protocol):
 
         Raises:
             RecordNotFoundError: The record does not exist.
+        """
+        ...
+
+
+class RecordInserter(Protocol):
+    """Storage that can also add and list records.
+
+    Why: This is separate from `RecordRepository`, the interface that the agent's tools use, so the
+    tools have no way to reach these methods. Only a person, through the API, adds records.
+
+    Used by: `ai_ops.api.routes`.
+    """
+
+    def add(self, record: Record) -> None:
+        """Insert a new record.
+
+        Why: See `SqliteRecordRepository.add`.
+
+        Used by: `POST /records`.
+
+        Args:
+            record: The record.
+
+        Raises:
+            RecordExistsError: The id is already used.
+        """
+        ...
+
+    def list_all(self) -> list[Record]:
+        """Read all records.
+
+        Why: See `SqliteRecordRepository.list_all`.
+
+        Used by: `GET /records`.
+
+        Returns:
+            The records, sorted by id.
         """
         ...
 
@@ -158,6 +205,49 @@ class SqliteRecordRepository:
                 "SELECT id, customer, item, status FROM records WHERE id = ?", (record_id,)
             ).fetchone()
         return Record(*row) if row else None
+
+    def add(self, record: Record) -> None:
+        """Insert a new record.
+
+        Why: The primary key rejects a repeated id, which holds even if two requests arrive
+        together.
+
+        Used by: `POST /records`.
+
+        Args:
+            record: The record.
+
+        Raises:
+            RecordExistsError: The id is already used.
+
+        Side effects:
+            Adds one row.
+        """
+        with connect(self._path) as connection:
+            try:
+                connection.execute(
+                    "INSERT INTO records (id, customer, item, status) VALUES (?, ?, ?, ?)",
+                    (record.id, record.customer, record.item, record.status),
+                )
+            except IntegrityError:
+                raise RecordExistsError(f"Record {record.id} already exists") from None
+            connection.commit()
+
+    def list_all(self) -> list[Record]:
+        """Read all records.
+
+        Why: A person needs to see what was added. Sorting by id keeps the order stable.
+
+        Used by: `GET /records`.
+
+        Returns:
+            The records, sorted by id.
+        """
+        with connect(self._path) as connection:
+            rows = connection.execute(
+                "SELECT id, customer, item, status FROM records ORDER BY id"
+            ).fetchall()
+        return [Record(*row) for row in rows]
 
     def update_status(self, record_id: str, status: RecordStatus) -> Record:
         """Change a record's status.

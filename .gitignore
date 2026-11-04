@@ -7,6 +7,8 @@ dist/
 .pytest_cache/
 .ruff_cache/
 evaluation-runs/
+# Documents added through the interface may be private.
+data/uploads/
 *.db
 *.db-journal
 

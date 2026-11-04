@@ -22,9 +22,9 @@ You need a key from the [DeepSeek console](https://platform.deepseek.com/api_key
    ```
 
 2. Paste your key after `AI_OPS_LLM_API_KEY=`, and save the file.
-3. Run `python -m ai_ops`. The header of the web interface now says "Real provider".
+3. Run `python -m ai_ops`, and open the **Settings** page in the web interface. It shows whether the key works, and lets you choose the model. A key cannot be entered on that page, because the API has no login.
 
-Only the key is needed. The URL `https://api.deepseek.com` and the model `deepseek-flash` are the defaults, and thinking mode is switched off because the agent does not keep the reasoning text that it would need to send back.
+Only the key is needed. The URL `https://api.deepseek.com` and the model `deepseek-flash` are the defaults, a model chosen on the Settings page is saved in the database and takes priority, and thinking mode is switched off because the agent does not keep the reasoning text that it would need to send back.
 
 DeepSeek's documentation lists no embeddings API, so retrieval runs locally with the same word matching as the mock provider. Answers come from DeepSeek, but retrieval quality does not improve.
 
@@ -62,6 +62,7 @@ To use another settings file, set `AI_OPS_ENV_FILE` to its path. Set it to an em
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `AI_OPS_KNOWLEDGE_DIR` | No | `data/knowledge` | Directory of `.md` and `.txt` documents, loaded at startup |
+| `AI_OPS_UPLOADS_DIR` | No | `data/uploads` | Where documents added on the Insert Data page go. Git ignores the default |
 | `AI_OPS_RAG_CHUNK_SIZE` | No | `800` | Maximum characters per chunk |
 | `AI_OPS_RAG_CHUNK_OVERLAP` | No | `100` | Characters repeated between chunks |
 | `AI_OPS_RAG_TOP_K` | No | `2` | Maximum chunks used per question |

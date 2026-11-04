@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx2
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
@@ -20,19 +21,23 @@ from ai_ops.api.errors import register_error_handlers
 from ai_ops.api.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
 from ai_ops.api.routes import router
 from ai_ops.config import Settings
+from ai_ops.integrations.app_settings import AppSettingsStore
 from ai_ops.integrations.outbound import OutboundService, build_outbound
 from ai_ops.integrations.records import SqliteRecordRepository, sample_records
 from ai_ops.llm.factory import build_provider
-from ai_ops.llm.provider import LLMProvider
+from ai_ops.llm.provider import LLMProvider, ModelSelection
 from ai_ops.logging import configure_logging
 from ai_ops.retrieval.documents import load_documents
 from ai_ops.retrieval.vector_store import InMemoryVectorStore
 from ai_ops.services.approval import ApprovalService
+from ai_ops.services.documents import DocumentService
+from ai_ops.services.extraction import RecordExtractor
+from ai_ops.services.llm_settings import LlmSettingsService
 from ai_ops.services.rag import RagService
 from ai_ops.services.workflow import TicketWorkflow
 
-# Far more than any valid request needs today. A question is limited to 1000 characters.
-MAX_BODY_BYTES = 64 * 1024
+# Room for the largest document, 50,000 characters, even if each one takes four bytes in JSON.
+MAX_BODY_BYTES = 256 * 1024
 # The web interface: plain files, with no build step. They only call the public API.
 UI_DIRECTORY = Path(__file__).parent.parent / "ui"
 
@@ -58,7 +63,8 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         LLMError: Embedding the documents failed. The app does not start.
     """
     app.state.records.initialise(sample_records())
-    documents = load_documents(app.state.knowledge_dir)
+    app.state.llm_settings.load()
+    documents = load_documents(app.state.knowledge_dir) + app.state.documents.load_uploads()
     await app.state.rag_service.ingest(documents)
     yield
     await app.state.outbound.aclose()
@@ -69,6 +75,7 @@ def create_app(
     settings: Settings,
     llm_provider: LLMProvider | None = None,
     outbound: OutboundService | None = None,
+    llm_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> FastAPI:
     """Build the FastAPI app.
 
@@ -82,6 +89,7 @@ def create_app(
         settings: Validated application settings.
         llm_provider: Replaces the configured provider. Tests pass a failing fake.
         outbound: Replaces the configured outbound service. Tests pass a failing fake.
+        llm_transport: Replaces the LLM provider's network. Tests pass a simulated service.
 
     Returns:
         The configured app. It is not running yet.
@@ -91,7 +99,10 @@ def create_app(
     """
     configure_logging(settings.log_level)
     app = FastAPI(title="AI Operations Assistant", version="0.1.0", lifespan=_lifespan)
-    app.state.llm_provider = llm_provider or build_provider(settings)
+    selection = ModelSelection(settings.llm_chat_model)
+    app.state.llm_provider = llm_provider or build_provider(
+        settings, transport=llm_transport, chat_model=lambda: selection.current
+    )
     app.state.provider_name = settings.llm_provider
     app.state.knowledge_dir = settings.knowledge_dir
     app.state.rag_service = RagService(
@@ -101,6 +112,11 @@ def create_app(
         chunk_overlap=settings.rag_chunk_overlap,
         top_k=settings.rag_top_k,
         min_score=settings.rag_min_score,
+    )
+    app.state.documents = DocumentService(app.state.rag_service, settings.uploads_dir)
+    app.state.extractor = RecordExtractor(app.state.llm_provider)
+    app.state.llm_settings = LlmSettingsService(
+        settings, app.state.llm_provider, selection, AppSettingsStore(settings.database_path)
     )
     app.state.records = SqliteRecordRepository(settings.database_path)
     app.state.outbound = outbound or build_outbound(settings)

@@ -77,6 +77,18 @@ class VectorStore(Protocol):
         """
         ...
 
+    def remove_document(self, document_id: str) -> None:
+        """Remove all chunks of a document.
+
+        Why: A removed document must stop being an answer at once.
+
+        Used by: `RagService.remove_document`.
+
+        Args:
+            document_id: The document's id.
+        """
+        ...
+
     def search(self, vector: list[float], top_k: int) -> list[ScoredChunk]:
         """Find the most similar chunks.
 
@@ -154,6 +166,18 @@ class InMemoryVectorStore:
             ValueError: The two sequences have different lengths.
         """
         self._items.extend(zip(chunks, vectors, strict=True))
+
+    def remove_document(self, document_id: str) -> None:
+        """Remove all chunks of a document.
+
+        Why: See `VectorStore.remove_document`.
+
+        Used by: `RagService.remove_document`.
+
+        Args:
+            document_id: The document's id.
+        """
+        self._items = [item for item in self._items if item[0].document_id != document_id]
 
     def search(self, vector: list[float], top_k: int) -> list[ScoredChunk]:
         """Score every chunk and return the best ones.

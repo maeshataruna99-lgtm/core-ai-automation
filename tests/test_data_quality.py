@@ -29,7 +29,8 @@ ALL_DATA_FILES = sorted(
     path
     for folder in ("data", "tests/fixtures")
     for path in (REPO / folder).rglob("*")
-    if path.is_file() and path.suffix in {".md", ".txt", ".json"}
+    # A person's own uploads are ignored by Git, so they are not part of the project's data.
+    if path.is_file() and path.suffix in {".md", ".txt", ".json"} and "uploads" not in path.parts
 )
 SCORE_NAMES = {
     "hit_rate",
@@ -277,6 +278,8 @@ def test_sample_orders_are_valid_and_synthetic():
         ("ticket_classify", {"ticket"}),
         ("ticket_draft_system", set()),
         ("ticket_draft_user", {"record", "context", "ticket"}),
+        ("record_extract_system", set()),
+        ("record_extract_user", {"text"}),
     ],
 )
 def test_prompts_have_the_placeholders_their_callers_fill(name, placeholders):
@@ -296,7 +299,10 @@ def test_prompts_have_the_placeholders_their_callers_fill(name, placeholders):
     assert set(re.findall(r"\$(\w+)", text)) == placeholders
 
 
-@pytest.mark.parametrize("name", ["grounded_answer_user", "ticket_classify", "ticket_draft_user"])
+@pytest.mark.parametrize(
+    "name",
+    ["grounded_answer_user", "ticket_classify", "ticket_draft_user", "record_extract_user"],
+)
 def test_user_prompts_end_with_the_untrusted_text(name):
     """Check where the untrusted text sits.
 
