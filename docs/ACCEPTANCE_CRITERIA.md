@@ -24,7 +24,7 @@
 - [x] Answers cite source documents.
 - [x] A question without context returns an explicit "not found" answer.
 - [x] Chunking and retrieval are deterministic in tests.
-- [ ] Prompt-injection text in a document does not alter system behaviour.
+- [x] Prompt-injection text in a document does not alter system behaviour.
 
 ## Agent and workflow
 - [x] The agent stops at the step limit.

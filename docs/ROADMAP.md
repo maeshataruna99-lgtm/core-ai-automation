@@ -77,7 +77,7 @@
 - [x] A question with no relevant context returns a "not found" answer, not an invented one.
 - [x] Retrieval is deterministic under the mock embedding provider.
 - [x] Tests cover chunk boundaries, empty store, and ranking order.
-- [ ] Prompt injection text inside a document does not change system behaviour (tested).
+- [x] Prompt injection text inside a document does not change system behaviour (tested).
 
 ## Milestone 4 — Agent and workflow automation
 
@@ -154,7 +154,7 @@
 
 **Acceptance criteria**
 - [x] A fresh clone can be set up by following the documentation.
-- [ ] The demo shows a grounded answer with sources, a tool lookup, and an approval-gated action.
+- [x] The demo shows a grounded answer with sources, a tool lookup, and an approval-gated action.
 - [x] No unsupported claims about production use, accuracy, or employer experience.
 - [x] Every resume claim is supported by repository evidence.
 

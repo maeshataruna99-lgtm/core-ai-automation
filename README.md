@@ -2,7 +2,7 @@
 
 An operations assistant for a small company, built in Python to learn and demonstrate AI engineering. It answers questions from documents with citations, looks up orders with an agent, keeps a person in control of every change, and measures its own retrieval quality.
 
-> **This is an educational project with synthetic data.** It has not been deployed to production, and it has not yet been run against a real LLM. See [Known limitations](#known-limitations).
+> **This is an educational project with synthetic data.** It has not been deployed to production, and it has only had a small evaluation against one real LLM, DeepSeek. See [Known limitations](#known-limitations).
 
 ![Demo of the assistant in a terminal](docs/demo/demo.gif)
 
@@ -17,6 +17,8 @@ An operations assistant for a small company, built in Python to learn and demons
 | **Replaceable parts** | The LLM provider, vector store, record storage, and messaging service each sit behind an interface |
 | **Evaluation** | A fixed question set measures retrieval, and CI fails if a score drops |
 | **Web interface** | A simple page for each feature, with no build step, served by the API |
+| **Insert data** | Add documents and orders while the app runs. A model can read a draft order from text, and a person saves it |
+| **Settings** | Choose the DeepSeek model, and check that the connection and key really work |
 
 ## Try it
 
@@ -71,9 +73,9 @@ Then open `http://127.0.0.1:8000` in a browser. Stop the API with Ctrl+C.
 
 ![The Approvals page of the web interface](docs/demo/ui-approvals.png)
 
-**[Watch the usage demo (1:47, MP4)](docs/demo/ui-demo.mp4).** It is a recording of the real interface with the mock provider, and only the captions and the red pointer were added on top.
+**[Watch the usage demo (2:36, MP4)](docs/demo/ui-demo.mp4).** It goes from input to expected output on every page. It is a recording of the real interface with DeepSeek's `deepseek-flash` and synthetic data, and only the captions and the red pointer were added on top.
 
-The interface needs no Node.js or build step, and works offline. It can ask questions with sources, chat with the agent, run tickets, approve or reject actions, read orders, and show diagnostics. It only calls the public API, and any other client can do the same.
+The interface needs no Node.js or build step, and works offline. It can ask questions with sources, chat with the agent, run tickets, approve or reject actions, read and add orders, add documents, choose the model, check the connection, and show diagnostics. It only calls the public API, and any other client can do the same.
 
 For developers, `http://127.0.0.1:8000/docs` lists each endpoint, and [docs/API.md](docs/API.md) has examples. That docs page needs internet access for its own interface.
 
@@ -160,13 +162,14 @@ python -m ai_ops.evaluation
 | The right document was retrieved (`hit_rate`) | 0.958 |
 | The retrieved text holds the expected fact (`context_fact_recall`) | 0.958 |
 | An unanswerable question got "not found" (`not_found_accuracy`) | 0.500 |
-| Answer quality, citations, and prompt injection resistance | Not measured, needs a real model |
+| With DeepSeek: the answer states the expected fact (`answer_fact_recall`) | 0.958 in each of 3 runs |
+| With DeepSeek: 2 document attacks ignored (`injection_resistance`) | 6 of 6 tries |
 
-**These numbers describe retrieval with a mock that matches exact words, on synthetic data. They are not the accuracy of an AI model.** The settings were tuned on the same questions, so results on new questions would likely be lower. See [docs/EVALUATION.md](docs/EVALUATION.md) for the method, the trade-offs, and the stored reports.
+**These numbers describe a small synthetic knowledge base, with retrieval that matches exact words. They do not predict results on real data.** The settings were tuned on the same questions, so results on new questions would likely be lower. See [docs/EVALUATION.md](docs/EVALUATION.md) for the method, the trade-offs, and the stored reports.
 
 ## Known limitations
 
-- **No real LLM has been used.** The DeepSeek setup, the OpenAI-compatible provider, and tool calling have only been tested against simulated responses. How a real model answers, chooses tools, or reacts to prompt injection is not verified.
+- **Real LLM testing is small.** DeepSeek's `deepseek-flash` has been evaluated on 34 synthetic cases in three runs, and a few tool calls were tried by hand. Other models, real data, and determined prompt injection are not tested.
 - **The HTTP messaging adapter has not met a real vendor.** Its request format is a typical one, and a real service would probably need changes.
 - **No login.** Anyone who can reach the API can read orders and approve actions, so it binds to localhost by default. Do not expose it to a network.
 - **Some state is lost on restart.** Orders persist in SQLite, but approvals, workflow progress, and the vector store are in memory. Documents are embedded again at each startup, which costs money with a real provider.
@@ -180,6 +183,7 @@ python -m ai_ops.evaluation
 | File | Purpose |
 |---|---|
 | [docs/OVERVIEW_ID.md](docs/OVERVIEW_ID.md) | Project overview in Indonesian |
+| [docs/USER_GUIDE.pdf](docs/USER_GUIDE.pdf) | User guide in Indonesian, from input to expected output, with screenshots |
 | [docs/API.md](docs/API.md) | Every endpoint, with examples |
 | [docs/openapi.json](docs/openapi.json) | The API contract |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | All settings |

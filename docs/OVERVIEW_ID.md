@@ -2,7 +2,7 @@
 
 AI Operations Assistant adalah asisten operasional untuk perusahaan kecil, dibuat dengan Python untuk mempelajari dan menunjukkan kemampuan AI engineering. Asisten ini menjawab pertanyaan dari dokumen beserta sumbernya, mencari data pesanan lewat agent, memastikan setiap perubahan disetujui manusia, dan mengukur kualitas retrieval-nya sendiri.
 
-> **Ini proyek pembelajaran dengan data sintetis.** Proyek ini belum pernah di-deploy ke produksi, dan belum pernah dijalankan dengan LLM sungguhan. Lihat bagian Keterbatasan.
+> **Ini proyek pembelajaran dengan data sintetis.** Proyek ini belum pernah di-deploy ke produksi, dan baru dievaluasi secara kecil dengan satu LLM sungguhan, yaitu DeepSeek. Lihat bagian Keterbatasan.
 
 ## Masalah yang diselesaikan
 
@@ -19,6 +19,8 @@ Staf perusahaan kecil sering menghabiskan waktu untuk mencari kebijakan, mengece
 | **Komponen yang bisa diganti** | Provider LLM, vector store, penyimpanan data, dan layanan pesan masing-masing berada di balik interface |
 | **Evaluasi** | Kumpulan pertanyaan tetap mengukur retrieval, dan CI gagal kalau skornya turun |
 | **Antarmuka web** | Halaman sederhana untuk tiap fitur, tanpa langkah build, disajikan oleh API |
+| **Insert data** | Menambah dokumen dan pesanan saat aplikasi berjalan. Model bisa membaca draft pesanan dari teks, lalu orang yang menyimpannya |
+| **Settings** | Memilih model DeepSeek dan memeriksa apakah koneksi dan key benar-benar berfungsi |
 
 ## Cara mencoba
 
@@ -46,7 +48,7 @@ $env:AI_OPS_LLM_PROVIDER = "mock"
 python -m ai_ops
 ```
 
-Rekaman pemakaiannya ada di `docs/demo/ui-demo.mp4`, dengan keterangan berbahasa Inggris.
+Rekaman pemakaiannya, dari input sampai output dengan DeepSeek, ada di `docs/demo/ui-demo.mp4`, dengan keterangan berbahasa Inggris.
 
 ## Hasil evaluasi
 
@@ -55,13 +57,14 @@ Rekaman pemakaiannya ada di `docs/demo/ui-demo.mp4`, dengan keterangan berbahasa
 | Dokumen yang benar terambil (`hit_rate`) | 0,958 |
 | Teks yang terambil memuat fakta yang diharapkan (`context_fact_recall`) | 0,958 |
 | Pertanyaan yang tidak bisa dijawab mendapat "tidak ditemukan" (`not_found_accuracy`) | 0,500 |
-| Kualitas jawaban, sitasi, dan ketahanan terhadap prompt injection | Belum diukur, butuh model sungguhan |
+| Dengan DeepSeek: jawaban memuat fakta yang diharapkan (`answer_fact_recall`) | 0,958 di tiap 3 run |
+| Dengan DeepSeek: 2 serangan lewat dokumen diabaikan (`injection_resistance`) | 6 dari 6 percobaan |
 
-**Angka ini menggambarkan retrieval dengan mock yang hanya mencocokkan kata persis, pada data sintetis. Ini bukan akurasi model AI.** Pengaturannya juga dioptimasi pada pertanyaan yang sama, jadi hasil pada pertanyaan baru kemungkinan lebih rendah. Penjelasan lengkapnya ada di `docs/EVALUATION.md`.
+**Angka ini berlaku untuk knowledge base sintetis yang kecil, dengan retrieval yang hanya mencocokkan kata persis. Ini tidak memprediksi hasil pada data sungguhan.** Pengaturannya juga dioptimasi pada pertanyaan yang sama, jadi hasil pada pertanyaan baru kemungkinan lebih rendah. Penjelasan lengkapnya ada di `docs/EVALUATION.md`.
 
 ## Keterbatasan
 
-- **Belum memakai LLM sungguhan.** Provider OpenAI-compatible dan tool calling baru dites dengan respons simulasi. Cara model asli menjawab, memilih tool, atau bereaksi terhadap prompt injection belum terverifikasi.
+- **Pengujian dengan LLM sungguhan masih kecil.** `deepseek-flash` baru dievaluasi pada 34 kasus sintetis dalam tiga run, dan beberapa tool call dicoba manual. Model lain, data sungguhan, dan prompt injection yang lebih serius belum dites.
 - **Adapter pesan HTTP belum dites ke vendor asli.** Vendor sungguhan kemungkinan memerlukan penyesuaian.
 - **Tidak ada login.** Siapa pun yang bisa mengakses API bisa membaca pesanan dan menyetujui aksi, jadi API hanya terikat ke localhost. Jangan membukanya ke jaringan.
 - **Sebagian data hilang saat restart.** Pesanan tersimpan di SQLite, tetapi persetujuan, progres workflow, dan vector store ada di memori.

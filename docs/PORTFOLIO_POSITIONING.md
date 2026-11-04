@@ -2,7 +2,7 @@
 
 ## Honest project description
 
-> Educational AI operations assistant in Python and FastAPI: retrieval-augmented generation with source citations, a tool-using agent where a person must approve every write, an idempotent ticket workflow, SQLite integration with migrations, and an evaluation suite that gates CI. Tested with a mock LLM provider and synthetic data.
+> Educational AI operations assistant in Python and FastAPI: retrieval-augmented generation with source citations, a tool-using agent where a person must approve every write, an idempotent ticket workflow, SQLite integration with migrations, and an evaluation suite that gates CI. Tested with a mock LLM provider, and evaluated with DeepSeek, on synthetic data.
 
 ## Resume bullets
 
@@ -14,7 +14,7 @@ Each bullet below is supported by the row with the same number in the evidence t
 4. Built a hand-written agent loop with a typed tool registry and step and time limits, where write tools can only create a pending approval, and verified this with a fake model that always attempts the write.
 5. Built an end-to-end ticket workflow with resumable steps and idempotency keys, so that retries do not repeat finished steps or send a message twice.
 6. Integrated SQLite through a repository with parameterised queries and transactional migrations, plus a third-party HTTP adapter that surfaces failures without leaking keys.
-7. Built an evaluation suite with a golden question set, stored reports, and a CI regression gate, and used it to measure a retrieval optimisation and its trade-offs.
+7. Built an evaluation suite with a golden question set, stored reports, and a CI regression gate, used it to measure a retrieval optimisation and its trade-offs, and ran it against DeepSeek on 34 synthetic cases.
 8. Set up CI on Windows and Linux for tests, lint, evaluation, and commit messages, with a one-command demo that checks each result end to end.
 9. Built a dependency-free web interface for each feature, which renders untrusted text safely, works by keyboard and at phone width, and can only write through the approval flow.
 
@@ -36,10 +36,10 @@ Each bullet below is supported by the row with the same number in the evidence t
 
 - **Production use.** It has not been deployed, and has had no real users or customer data.
 - **Employer or client experience.** This is a personal learning project.
-- **Accuracy.** The evaluation scores describe retrieval with a mock that matches exact words, on synthetic data. Do not quote them as model accuracy.
-- **Experience with a real LLM in this project.** It has only run against a mock and simulated responses. Add this only after a real run.
-- **Resistance to prompt injection.** Tests prove that a manipulated model cannot change data without approval. They do not prove that a real model ignores an attack.
-- **Scale or latency.** The measured latency does not include a model call.
+- **Accuracy.** The scores come from 34 synthetic cases that the author wrote, with retrieval that matches exact words. Do not quote them as accuracy on real data.
+- **Broad experience with real LLMs from this project.** It has had a small evaluation with one model, and a few tool calls tried by hand.
+- **Resistance to prompt injection.** Tests prove that a manipulated model cannot change data without approval. `deepseek-flash` ignored two simple document attacks, in 6 of 6 tries, which does not show that it resists a determined attacker.
+- **Scale or latency.** Measured latency is from one computer, one request at a time, on small documents.
 
 ## Before using these bullets
 
@@ -64,4 +64,4 @@ Responsibilities and requirements in the AI Engineer listing map to `docs/PROJEC
 8. Show the tool calls in the audit log.
 9. Run the evaluation, and show the report.
 
-In an interview, also open `src/ai_ops/agents/registry.py` to show how a write tool's handler can only be reached through approval, and point out what the mock cannot show: real answers.
+In an interview, also open `src/ai_ops/agents/registry.py` to show how a write tool's handler can only be reached through approval, and point out what the mock cannot show: real answers. With a DeepSeek key, `docs/EVALUATION.md` shows what they looked like.

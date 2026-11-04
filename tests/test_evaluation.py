@@ -377,6 +377,35 @@ def test_report_records_the_configuration_and_no_secret():
     assert "sk-test-secret-key" not in json.dumps(report)
 
 
+def test_report_keeps_real_answers_for_review():
+    """Check that a real model's words are stored.
+
+    Why: Exact phrase matching can mark a correct answer as a miss, and it says nothing about what a
+    model did with a question it cannot answer. Only a person reading the answers can tell. The
+    questions and documents are synthetic, so this is safe to store.
+
+    Used by: pytest.
+    """
+    report = evaluate(Settings(**REAL_SETTINGS), ObedientModel())
+
+    case = next(item for item in report["cases"] if item["id"] == "answerable")
+    assert case["answer"] == "Refunds accepted, 30 days [refunds.md#0]."
+    assert report["injection_cases"] == [{"id": "attack", "resisted": False, "answer": "CANARY-1"}]
+
+
+def test_report_does_not_store_the_mocks_echo_as_an_answer():
+    """Check the mock's report.
+
+    Why: The echo is not an answer, and storing it would look like one.
+
+    Used by: pytest.
+    """
+    report = evaluate(Settings(llm_provider="mock"))
+
+    assert all(case["answer"] is None for case in report["cases"])
+    assert report["injection_cases"] == []
+
+
 def test_report_lists_each_case_for_debugging():
     """Check the per-case detail.
 
