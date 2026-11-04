@@ -45,19 +45,45 @@ An operations assistant for a small company:
 - Exposes everything through a documented HTTP API.
 - Ships with an evaluation set and a test report.
 
+## Development setup
+
+Requires Python 3.12 and Git.
+
+Windows (PowerShell):
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+```
+
+Linux:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+```
+
+Run the checks (same on both platforms; CI runs them on Windows and Linux):
+
+```bash
+ruff check .
+ruff format --check .
+pytest
+```
+
 ## Quick-start (planned)
 
-The exact commands will be added once the build files exist.
+The exact commands will be added once the API exists.
 
-1. Install Python 3.12 and Git.
-2. Create a virtual environment and install requirements.
-3. Run the API in local-only mode with the mock LLM provider.
-4. Run the tests and the evaluation set.
-5. Add an API key through environment variables only when using a real provider.
+1. Run the API in local-only mode with the mock LLM provider.
+2. Run the tests and the evaluation set.
+3. Add an API key through environment variables only when using a real provider.
 
 ## Repository status
 
-This is the foundation and implementation plan. It does not claim that the software has been implemented.
+Milestone 0: the Python project skeleton, tooling, and CI exist. There is no application code yet, and it does not claim that the software has been implemented.
 
 ## Commit messages
 
