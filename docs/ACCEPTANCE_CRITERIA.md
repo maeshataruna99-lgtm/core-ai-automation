@@ -12,7 +12,7 @@
 - [ ] Invalid requests are rejected with 422 and a clear message.
 - [ ] Request size and agent step limits are enforced.
 - [ ] Upstream LLM failures return 502; timeouts return 504.
-- [ ] The API binds to 127.0.0.1 by default.
+- [x] The API binds to 127.0.0.1 by default.
 
 ## LLM layer
 - [ ] Application runs fully with the mock provider.

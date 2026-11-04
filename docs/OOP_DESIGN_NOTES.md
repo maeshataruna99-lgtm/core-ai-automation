@@ -22,5 +22,7 @@ This document records actual design decisions as implementation progresses.
 | Tool registry | Python | Fill after implementation | Planned | Typed tools for the agent |
 | State machine (workflow/approval) | Python | Fill after implementation | Planned | Explicit pending, approved, rejected states |
 | Dependency injection | Python | Fill after implementation | Planned | Compose services in the API layer |
+| Application factory | Python | `src/ai_ops/api/app.py`, `create_app` | Implemented | Settings are passed in, so importing has no side effects and each test builds its own app |
+| ASGI middleware | Python | `src/ai_ops/api/middleware.py`, `RequestContextMiddleware` | Implemented | One start and end point for the request id, request log, and last-resort 500 |
 
 Update this table only with real source paths and symbols after implementation. Do not claim planned patterns are implemented.

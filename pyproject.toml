@@ -12,10 +12,11 @@ version = "0.1.0"
 description = "Educational AI operations assistant: LLM integration, RAG, agents, and workflow automation."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["fastapi>=0.115", "uvicorn>=0.30"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6"]
+# httpx2 is required by FastAPI's TestClient. Plain httpx triggers a deprecation warning.
+dev = ["httpx2>=2", "pytest>=8", "ruff>=0.6"]
 
 # Src layout: packages live in src/, so tests must import the installed package.
 [tool.setuptools.packages.find]

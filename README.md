@@ -73,17 +73,42 @@ ruff format --check .
 pytest
 ```
 
+## Run the API
+
+Windows (PowerShell):
+
+```powershell
+$env:AI_OPS_LLM_PROVIDER = "mock"
+python -m ai_ops
+```
+
+Linux:
+
+```bash
+AI_OPS_LLM_PROVIDER=mock python -m ai_ops
+```
+
+Then open `http://127.0.0.1:8000/health` or the generated docs at `http://127.0.0.1:8000/docs`. Stop the API with Ctrl+C.
+
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `AI_OPS_LLM_PROVIDER` | Yes | | LLM provider. Only `mock` exists so far |
+| `AI_OPS_LOG_LEVEL` | No | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
+| `AI_OPS_HOST` | No | `127.0.0.1` | Bind address |
+| `AI_OPS_PORT` | No | `8000` | Bind port |
+
+The API exits with a clear message when a required variable is missing or a value is invalid. Logs are JSON lines on stderr. Every response has an `X-Request-ID` header that matches the logs.
+
 ## Quick-start (planned)
 
-The exact commands will be added once the API exists.
+The exact commands will be added as the features are built.
 
-1. Run the API in local-only mode with the mock LLM provider.
-2. Run the tests and the evaluation set.
-3. Add an API key through environment variables only when using a real provider.
+1. Run the tests and the evaluation set.
+2. Add an API key through environment variables only when using a real provider.
 
 ## Repository status
 
-Milestone 0: the Python project skeleton, tooling, and CI exist. There is no application code yet, and it does not claim that the software has been implemented.
+Milestones 0 and 1: the project skeleton, tooling, CI, and the API foundation exist (`GET /health`, settings, structured logging, request ids, and consistent errors). The LLM, RAG, agent, and workflow features are not implemented yet.
 
 ## Commit messages
 

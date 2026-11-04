@@ -31,10 +31,10 @@
 
 **Acceptance criteria**
 - [ ] API starts and stops cleanly.
-- [ ] Invalid input returns 422 with a clear message.
-- [ ] Logs contain timestamp, severity, request id.
-- [ ] Missing configuration fails fast with a clear error.
-- [ ] Tests cover health, validation, and error mapping.
+- [x] Invalid input returns 422 with a clear message.
+- [x] Logs contain timestamp, severity, request id.
+- [x] Missing configuration fails fast with a clear error.
+- [x] Tests cover health, validation, and error mapping.
 
 ## Milestone 2 — LLM integration layer
 
