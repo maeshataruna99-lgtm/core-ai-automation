@@ -49,9 +49,11 @@ class Settings(BaseModel):
             the current working directory.
         rag_chunk_size: Maximum characters per chunk. Large enough to hold a paragraph.
         rag_chunk_overlap: Characters repeated between chunks.
-        rag_top_k: Maximum chunks used per question.
-        rag_min_score: Lowest similarity counted as relevant. It depends on the embedding
-            model, so check it when the model changes.
+        rag_top_k: Maximum chunks used per question. See `docs/EVALUATION.md` for how the default
+            was chosen.
+        rag_min_score: Lowest similarity counted as relevant. The default was measured with the
+            mock provider. It depends on the embedding model, so measure it again when the model
+            changes.
         agent_max_steps: Maximum model calls for one chat message. Capped, because each step
             costs tokens.
         agent_timeout_seconds: Time limit for one chat message.
@@ -77,8 +79,8 @@ class Settings(BaseModel):
     knowledge_dir: Path = Path("data/knowledge")
     rag_chunk_size: int = Field(default=800, gt=0)
     rag_chunk_overlap: int = Field(default=100, ge=0)
-    rag_top_k: int = Field(default=4, gt=0)
-    rag_min_score: float = Field(default=0.15, ge=-1, le=1)
+    rag_top_k: int = Field(default=2, gt=0)
+    rag_min_score: float = Field(default=0.10, ge=-1, le=1)
     agent_max_steps: int = Field(default=5, ge=1, le=20)
     agent_timeout_seconds: float = Field(default=60.0, gt=0)
     database_path: Path = Path("data/ai_ops.db")

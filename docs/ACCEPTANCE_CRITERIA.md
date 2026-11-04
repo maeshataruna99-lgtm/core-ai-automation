@@ -40,10 +40,10 @@
 - [x] Adapter errors are surfaced.
 
 ## Evaluation
-- [ ] A golden set exists with expected sources and facts.
-- [ ] One command runs evaluation and prints a report.
-- [ ] A regression threshold fails the run when scores fall.
-- [ ] Reported metrics come from recorded runs.
+- [x] A golden set exists with expected sources and facts.
+- [x] One command runs evaluation and prints a report.
+- [x] A regression threshold fails the run when scores fall.
+- [x] Reported metrics come from recorded runs.
 
 ## UI (optional)
 - [ ] Sources are visible next to answers.

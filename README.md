@@ -140,8 +140,8 @@ Orders are stored in the SQLite file at `AI_OPS_DATABASE_PATH`, which is created
 | `AI_OPS_KNOWLEDGE_DIR` | No | `data/knowledge` | Directory of `.md` and `.txt` documents |
 | `AI_OPS_RAG_CHUNK_SIZE` | No | `800` | Maximum characters per chunk |
 | `AI_OPS_RAG_CHUNK_OVERLAP` | No | `100` | Characters repeated between chunks |
-| `AI_OPS_RAG_TOP_K` | No | `4` | Maximum chunks used per question |
-| `AI_OPS_RAG_MIN_SCORE` | No | `0.15` | Lowest similarity counted as relevant. Chosen for the mock provider, so check it when using a real embedding model |
+| `AI_OPS_RAG_TOP_K` | No | `2` | Maximum chunks used per question |
+| `AI_OPS_RAG_MIN_SCORE` | No | `0.10` | Lowest similarity counted as relevant. Measured with the mock provider, so measure it again for a real embedding model |
 | `AI_OPS_AGENT_MAX_STEPS` | No | `5` | Maximum model calls for one chat message, from 1 to 20 |
 | `AI_OPS_AGENT_TIMEOUT_SECONDS` | No | `60` | Time limit for one chat message |
 | `AI_OPS_DATABASE_PATH` | No | `data/ai_ops.db` | SQLite file for orders |
@@ -155,16 +155,26 @@ Orders are stored in the SQLite file at `AI_OPS_DATABASE_PATH`, which is created
 
 The API exits with a clear message when a required variable is missing or a value is invalid. Logs are JSON lines on stderr. Every response has an `X-Request-ID` header that matches the logs.
 
-## Quick-start (planned)
+## Evaluate
 
-The exact commands will be added as the features are built.
+Windows (PowerShell):
 
-1. Run the tests and the evaluation set.
-2. Add an API key through environment variables only when using a real provider.
+```powershell
+$env:AI_OPS_LLM_PROVIDER = "mock"
+python -m ai_ops.evaluation
+```
+
+Linux:
+
+```bash
+AI_OPS_LLM_PROVIDER=mock python -m ai_ops.evaluation
+```
+
+This runs a fixed question set through the RAG pipeline, prints a report, and fails if a score falls below its minimum. CI runs it too. See `docs/EVALUATION.md` for the metrics, the measured results, and their limits. With the mock provider, the scores describe retrieval on the synthetic sample data, not the accuracy of an AI model.
 
 ## Repository status
 
-Milestones 0 to 5: the project skeleton, tooling, CI, the API foundation (`GET /health`, settings, structured logging, request ids, and consistent errors), the LLM layer (provider interface, mock provider, OpenAI-compatible provider, retries, and prompt templates), RAG (`POST /ask`, document loading, chunking, and an in-memory vector store), the agent (`POST /chat`, tool registry, and human approval through `POST /approvals/{id}`), the ticket workflow (`POST /workflows/ticket`), and the integrations (SQLite with migrations, `GET /records/{id}`, and an HTTP outbound adapter) exist. The OpenAI-compatible provider and the HTTP adapter have only been tested against simulated services, so how a real model chooses tools or handles prompt injection is not verified. The optional cache and the evaluation suite are not implemented yet.
+Milestones 0 to 6: the project skeleton, tooling, CI, the API foundation (`GET /health`, settings, structured logging, request ids, and consistent errors), the LLM layer (provider interface, mock provider, OpenAI-compatible provider, retries, and prompt templates), RAG (`POST /ask`, document loading, chunking, and an in-memory vector store), the agent (`POST /chat`, tool registry, and human approval through `POST /approvals/{id}`), the ticket workflow (`POST /workflows/ticket`), the integrations (SQLite with migrations, `GET /records/{id}`, and an HTTP outbound adapter), and the evaluation suite exist. The OpenAI-compatible provider and the HTTP adapter have only been tested against simulated services, so how a real model answers, chooses tools, or handles prompt injection is not verified. The optional cache is not implemented.
 
 ## Commit messages
 
@@ -188,6 +198,7 @@ Examples: `feat(retrieval): add chunk overlap setting`, `fix(api): return 504 on
 | `docs/ARCHITECTURE.md` | Components, module boundaries, API contract |
 | `docs/ROADMAP.md` | Milestones and acceptance checkboxes |
 | `docs/ACCEPTANCE_CRITERIA.md` | Verification checklist |
+| `docs/EVALUATION.md` | How to evaluate, measured results, and their limits |
 | `docs/PYTHON_LEARNING_PATH.md` | Learning stages tied to project problems |
 | `docs/OOP_DESIGN_NOTES.md` | Record of implemented design decisions |
 | `docs/UI_UX_DESIGN.md` | Chat and dashboard UI specification |

@@ -1,0 +1,10 @@
+{
+  "mock": {
+    "hit_rate": 0.958,
+    "precision": 0.666,
+    "recall": 0.958,
+    "context_fact_recall": 0.958,
+    "not_found_accuracy": 0.5
+  },
+  "openai_compatible": {}
+}

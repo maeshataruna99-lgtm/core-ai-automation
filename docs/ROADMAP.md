@@ -135,10 +135,10 @@
 - Documented optimisation steps with before and after numbers.
 
 **Acceptance criteria**
-- [ ] Evaluation runs with one command and prints a report.
-- [ ] A regression threshold fails the run when scores drop.
-- [ ] Reported numbers come from actual runs and are stored with the date and configuration.
-- [ ] At least one optimisation (chunk size, top-k, caching) is measured.
+- [x] Evaluation runs with one command and prints a report.
+- [x] A regression threshold fails the run when scores drop.
+- [x] Reported numbers come from actual runs and are stored with the date and configuration.
+- [x] At least one optimisation (chunk size, top-k, caching) is measured.
 
 ## Milestone 7 — Portfolio polish
 

@@ -29,3 +29,7 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest
+      # Fails the build when a change lowers a retrieval score below data/evaluation/thresholds.json.
+      - run: python -m ai_ops.evaluation --label ci
+        env:
+          AI_OPS_LLM_PROVIDER: mock
