@@ -16,6 +16,7 @@ Each bullet below is supported by the row with the same number in the evidence t
 6. Integrated SQLite through a repository with parameterised queries and transactional migrations, plus a third-party HTTP adapter that surfaces failures without leaking keys.
 7. Built an evaluation suite with a golden question set, stored reports, and a CI regression gate, and used it to measure a retrieval optimisation and its trade-offs.
 8. Set up CI on Windows and Linux for tests, lint, evaluation, and commit messages, with a one-command demo that checks each result end to end.
+9. Built a dependency-free web interface for each feature, which renders untrusted text safely, works by keyboard and at phone width, and can only write through the approval flow.
 
 ## Evidence
 
@@ -29,6 +30,7 @@ Each bullet below is supported by the row with the same number in the evidence t
 | 6 | SQLite and adapter | `src/ai_ops/integrations/records.py`, `src/ai_ops/integrations/database.py`, `src/ai_ops/integrations/outbound.py`, `tests/test_records.py`, `tests/test_outbound.py` |
 | 7 | Evaluation | `src/ai_ops/evaluation/runner.py`, `data/evaluation/golden.json`, `docs/EVALUATION.md`, `.github/workflows/ci.yml` |
 | 8 | CI and demo | `.github/workflows/ci.yml`, `.github/workflows/commitlint.yml`, `scripts/demo.py`, `tests/test_demo_and_docs.py` |
+| 9 | Web interface | `src/ai_ops/ui/app.js`, `tests/test_ui.py`, `docs/UI_UX_DESIGN.md`, `docs/demo/ui-demo.mp4` |
 
 ## What not to claim
 
@@ -50,7 +52,7 @@ Responsibilities and requirements in the AI Engineer listing map to `docs/PROJEC
 
 ## Suggested demo sequence
 
-`python scripts/demo.py` runs this sequence and checks each result:
+`python scripts/demo.py` runs this sequence and checks each result. `docs/demo/ui-demo.mp4` shows the same features in the web interface:
 
 1. Start the API with the mock provider.
 2. Ask a question, and show the sources.

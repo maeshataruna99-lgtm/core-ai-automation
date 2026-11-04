@@ -46,10 +46,10 @@
 - [x] Reported metrics come from recorded runs.
 
 ## UI (optional)
-- [ ] Sources are visible next to answers.
-- [ ] Loading, error, no-answer, and pending-approval states are visible.
-- [ ] Write actions cannot bypass approval.
-- [ ] The API remains usable without the UI.
+- [x] Sources are visible next to answers.
+- [x] Loading, error, no-answer, and pending-approval states are visible.
+- [x] Write actions cannot bypass approval.
+- [x] The API remains usable without the UI.
 
 ## Portfolio readiness
 - [x] README includes setup and run steps.

@@ -8,8 +8,10 @@ Used by: `ai_ops.__main__.main` and `tests/test_api.py`.
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from ai_ops.agents.loop import Agent
 from ai_ops.agents.registry import ToolRegistry
@@ -31,6 +33,8 @@ from ai_ops.services.workflow import TicketWorkflow
 
 # Far more than any valid request needs today. A question is limited to 1000 characters.
 MAX_BODY_BYTES = 64 * 1024
+# The web interface: plain files, with no build step. They only call the public API.
+UI_DIRECTORY = Path(__file__).parent.parent / "ui"
 
 
 @asynccontextmanager
@@ -88,6 +92,7 @@ def create_app(
     configure_logging(settings.log_level)
     app = FastAPI(title="AI Operations Assistant", version="0.1.0", lifespan=_lifespan)
     app.state.llm_provider = llm_provider or build_provider(settings)
+    app.state.provider_name = settings.llm_provider
     app.state.knowledge_dir = settings.knowledge_dir
     app.state.rag_service = RagService(
         provider=app.state.llm_provider,
@@ -120,4 +125,5 @@ def create_app(
     app.add_middleware(RequestContextMiddleware)
     register_error_handlers(app)
     app.include_router(router)
+    app.mount("/ui", StaticFiles(directory=UI_DIRECTORY, html=True), name="ui")
     return app

@@ -171,19 +171,19 @@ Do not start the frontend before Milestone 4 is stable. First make the LLM layer
 
 **Acceptance criteria**
 - [ ] The wireframe is reviewed before any frontend code.
-- [ ] Loading, error, empty, no-answer, and pending-approval states are specified.
-- [ ] The assistant remains fully usable through the API without the UI.
+- [x] Loading, error, empty, no-answer, and pending-approval states are specified.
+- [x] The assistant remains fully usable through the API without the UI.
 
-## Milestone 7B — Optional Vue frontend
+## Milestone 7B — Optional frontend
 
-**Status:** Optional enhancement, not an MVP blocker.
+**Status:** Optional enhancement, not an MVP blocker. Built with plain JavaScript in place of Vue, so the deliverables below that name Vue or a mock API mode were not done. The mock LLM provider serves the same purpose as a mock API.
 
 **Deliverables**
 - Vue 3 chat and approval screens using the existing API.
 - Mock API mode for UI development.
 
 **Acceptance criteria**
-- [ ] The UI shows sources next to each answer.
-- [ ] Pending, approved, rejected, and failed states are visible.
-- [ ] The UI cannot trigger a write action without an approval step.
+- [x] The UI shows sources next to each answer.
+- [x] Pending, approved, rejected, and failed states are visible.
+- [x] The UI cannot trigger a write action without an approval step.
 - [ ] The API and tests work when the frontend is absent.

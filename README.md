@@ -16,6 +16,7 @@ An operations assistant for a small company, built in Python to learn and demons
 | **Ticket workflow** | Classifies a ticket, finds the order, drafts a reply, and waits for approval before sending. Retries never send twice |
 | **Replaceable parts** | The LLM provider, vector store, record storage, and messaging service each sit behind an interface |
 | **Evaluation** | A fixed question set measures retrieval, and CI fails if a score drops |
+| **Web interface** | A simple page for each feature, with no build step, served by the API |
 
 ## Try it
 
@@ -47,11 +48,11 @@ python scripts/demo.py
 
 The demo starts the API, walks through each feature, checks every result, and stops the API. It changes nothing in the repository.
 
-The mock provider echoes questions instead of answering them, so the demo shows retrieval, tools, approvals, and workflows, but not answer quality. Real answers need an OpenAI-compatible provider, which you can set up with [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+The mock provider echoes questions instead of answering them, so the demo shows retrieval, tools, approvals, and workflows, but not answer quality. Real answers need a provider key: see [Use DeepSeek](docs/CONFIGURATION.md#use-deepseek), which also covers keeping keys out of Git.
 
-## Run the API
+## Use the web interface
 
-From the repository root, so that it finds the sample documents:
+Start the API from the repository root, so that it finds the sample documents:
 
 Windows (PowerShell):
 
@@ -66,17 +67,23 @@ Linux:
 AI_OPS_LLM_PROVIDER=mock python -m ai_ops
 ```
 
-Then open `http://127.0.0.1:8000/docs` to try each endpoint. Stop the API with Ctrl+C.
+Then open `http://127.0.0.1:8000` in a browser. Stop the API with Ctrl+C.
+
+![The Approvals page of the web interface](docs/demo/ui-approvals.png)
+
+**[Watch the usage demo (1:47, MP4)](docs/demo/ui-demo.mp4).** It is a recording of the real interface with the mock provider, and only the captions and the red pointer were added on top.
+
+The interface needs no Node.js or build step, and works offline. It can ask questions with sources, chat with the agent, run tickets, approve or reject actions, read orders, and show diagnostics. It only calls the public API, and any other client can do the same.
+
+For developers, `http://127.0.0.1:8000/docs` lists each endpoint, and [docs/API.md](docs/API.md) has examples. That docs page needs internet access for its own interface.
 
 ![Interactive API docs](docs/demo/api-docs.png)
-
-See [docs/API.md](docs/API.md) for examples of every endpoint.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    client["Client: curl, API docs, demo script"] -->|"HTTP/JSON, localhost only"| api["API layer: FastAPI<br/>validation, request ids, error mapping"]
+    client["Client: web interface, curl, demo script"] -->|"HTTP/JSON, localhost only"| api["API layer: FastAPI<br/>validation, request ids, error mapping"]
     api --> rag["RAG service"]
     api --> agent["Agent loop<br/>step and time limits"]
     api --> workflow["Ticket workflow"]
@@ -131,6 +138,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module boundaries and data 
 | Agent | Hand-written loop | Every step can be read, tested, and limited, without a framework |
 | Vector search | In-memory cosine similarity | Learn the concept first. A database can replace it behind the interface |
 | Storage | SQLite with numbered SQL migrations | Needs no server, and uses parameterised queries |
+| Interface | Plain HTML, CSS, and JavaScript | No build step or dependencies, so it works wherever the API runs |
 | Quality | pytest, ruff, GitHub Actions | Tests, lint, and evaluation run on Windows and Linux |
 
 ## Test and evaluate
@@ -158,13 +166,14 @@ python -m ai_ops.evaluation
 
 ## Known limitations
 
-- **No real LLM has been used.** The OpenAI-compatible provider and tool calling have only been tested against simulated responses. How a real model answers, chooses tools, or reacts to prompt injection is not verified.
+- **No real LLM has been used.** The DeepSeek setup, the OpenAI-compatible provider, and tool calling have only been tested against simulated responses. How a real model answers, chooses tools, or reacts to prompt injection is not verified.
 - **The HTTP messaging adapter has not met a real vendor.** Its request format is a typical one, and a real service would probably need changes.
 - **No login.** Anyone who can reach the API can read orders and approve actions, so it binds to localhost by default. Do not expose it to a network.
 - **Some state is lost on restart.** Orders persist in SQLite, but approvals, workflow progress, and the vector store are in memory. Documents are embedded again at each startup, which costs money with a real provider.
 - **Single user, small scale.** Vector search compares every chunk, SQLite calls briefly block the event loop, and there is no conversation history.
 - **Logs can hold personal data.** Tool inputs are logged as an audit trail, so a search query appears there as typed.
-- **No optional parts yet.** There is no Redis cache and no web interface. The API docs page needs internet access for its interface.
+- **The interface is deliberately simple.** It keeps its chat history and diagnostics only until the page reloads, and it has no automated browser tests in this repository.
+- **No Redis cache.** It is optional, and there is no need for it yet.
 
 ## Documentation
 
@@ -182,8 +191,8 @@ python -m ai_ops.evaluation
 | [docs/ACCEPTANCE_CRITERIA.md](docs/ACCEPTANCE_CRITERIA.md) | Verification checklist |
 | [docs/PORTFOLIO_POSITIONING.md](docs/PORTFOLIO_POSITIONING.md) | Honest project description and its evidence |
 | [docs/PYTHON_LEARNING_PATH.md](docs/PYTHON_LEARNING_PATH.md) | Learning stages, and the code documentation rule |
-| [docs/UI_UX_DESIGN.md](docs/UI_UX_DESIGN.md) | Planned interface specification, not built |
-| [docs/OPTIONAL_VUE_FRONTEND.md](docs/OPTIONAL_VUE_FRONTEND.md) | Planned optional frontend, not built |
+| [docs/UI_UX_DESIGN.md](docs/UI_UX_DESIGN.md) | Interface specification, and how it was checked |
+| [docs/OPTIONAL_VUE_FRONTEND.md](docs/OPTIONAL_VUE_FRONTEND.md) | The Vue track, which was not built, and why |
 
 ## Commit messages
 

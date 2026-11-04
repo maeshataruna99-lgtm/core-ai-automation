@@ -1,5 +1,9 @@
 # UI/UX Design Specification
 
+**Status:** built in `src/ai_ops/ui/` as plain HTML, CSS, and JavaScript, with no build step and no dependencies. See `docs/demo/ui-demo.mp4` for a recording. Open it at `http://127.0.0.1:8000` while the API runs.
+
+**How it was checked:** on 2026-11-04, a script drove the real page in Microsoft Edge against the running API, and each criterion in section 10 passed. It covered light and dark themes, 375 px and 1280 px widths, keyboard-only use, text contrast of at least 4.5:1, and a document containing script tags. That script is not in this repository, so `tests/test_ui.py` only covers what needs no browser. Other browsers and screen readers were not tested.
+
 ## 1. Design goals
 
 Create a clear chat and approval interface for an educational AI operations assistant.
@@ -108,9 +112,9 @@ For the MVP, a single page with a sidebar or tabs is sufficient.
 
 ## 10. UI acceptance criteria
 
-- [ ] Every assistant answer shows sources or an explicit "no sources" note.
-- [ ] Loading, error, no-answer, and pending-approval states are distinguishable.
-- [ ] Write actions cannot run without an approval click.
-- [ ] Retrieved text is rendered safely.
-- [ ] Core operation works by keyboard.
-- [ ] Layout is usable at 375 px and 1280 px.
+- [x] Every assistant answer shows sources or an explicit "no sources" note.
+- [x] Loading, error, no-answer, and pending-approval states are distinguishable.
+- [x] Write actions cannot run without an approval click.
+- [x] Retrieved text is rendered safely.
+- [x] Core operation works by keyboard.
+- [x] Layout is usable at 375 px and 1280 px.

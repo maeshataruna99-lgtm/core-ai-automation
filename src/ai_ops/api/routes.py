@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from fastapi import Path as FastAPIPath
+from fastapi.responses import RedirectResponse
 
 from ai_ops.agents.loop import Agent
 from ai_ops.api.schemas import (
@@ -29,7 +30,7 @@ from ai_ops.api.schemas import (
     UsageResponse,
 )
 from ai_ops.integrations.records import RecordNotFoundError, RecordRepository
-from ai_ops.services.approval import ApprovalService
+from ai_ops.services.approval import Approval, ApprovalService
 from ai_ops.services.rag import RagService
 from ai_ops.services.workflow import TicketWorkflow
 
@@ -124,22 +125,40 @@ WorkflowDependency = Annotated[TicketWorkflow, Depends(get_ticket_workflow)]
 ApprovalsDependency = Annotated[ApprovalService, Depends(get_approvals)]
 
 
+@router.get("/", include_in_schema=False)
+async def open_interface() -> RedirectResponse:
+    """Send a browser to the web interface.
+
+    Why: Opening `http://127.0.0.1:8000` should show the app, not a 404. This is left out of the
+    API docs because it is not part of the API.
+
+    Used by: people opening the root address in a browser.
+
+    Returns:
+        A redirect to `/ui/`.
+    """
+    return RedirectResponse("/ui/")
+
+
 @router.get("/health")
-async def health(rag: RagDependency) -> HealthResponse:
-    """Report that the API process is running and how many documents loaded.
+async def health(request: Request, rag: RagDependency) -> HealthResponse:
+    """Report that the API process is running, how many documents loaded, and the provider.
 
     Why: Gives people, scripts, and the demo a cheap way to check the API is up. It calls no
     external service, so it still answers when an LLM provider is down.
 
-    Used by: API clients over `GET /health`.
+    Used by: API clients over `GET /health`, and the header of the web interface.
 
     Args:
+        request: The current request.
         rag: The RAG service.
 
     Returns:
-        Status `ok` and the document count.
+        Status `ok`, the document count, and the configured provider's name.
     """
-    return HealthResponse(status="ok", documents=rag.document_count)
+    return HealthResponse(
+        status="ok", documents=rag.document_count, provider=request.app.state.provider_name
+    )
 
 
 @router.post(
@@ -282,7 +301,7 @@ async def run_ticket_workflow(body: TicketRequest, workflow: WorkflowDependency)
     responses={404: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
 )
 async def get_record(
-    record_id: Annotated[str, FastAPIPath(pattern=r"^ORD-\d+$")], records: RecordsDependency
+    record_id: Annotated[str, FastAPIPath(pattern=r"^ORD-[0-9]+$")], records: RecordsDependency
 ) -> RecordResponse:
     """Read one order.
 
@@ -307,6 +326,47 @@ async def get_record(
     return RecordResponse(
         id=record.id, customer=record.customer, item=record.item, status=record.status
     )
+
+
+def _approval_response(approval: Approval) -> ApprovalResponse:
+    """Convert an approval to its API model.
+
+    Why: Both approval routes return the same shape.
+
+    Used by: `list_approvals` and `decide_approval`.
+
+    Args:
+        approval: The approval.
+
+    Returns:
+        The response model.
+    """
+    return ApprovalResponse(
+        id=approval.id,
+        kind=approval.kind,
+        payload=approval.payload,
+        status=approval.status,
+        result=approval.result,
+        created_at=approval.created_at,
+    )
+
+
+@router.get("/approvals")
+async def list_approvals(approvals: ApprovalsDependency) -> list[ApprovalResponse]:
+    """List all approvals, newest first.
+
+    Why: This gives a person one place to see what is waiting. It has no login, like the rest of
+    the API, which is another reason it stays bound to localhost.
+
+    Used by: the Approvals page of the web interface, and other API clients.
+
+    Args:
+        approvals: The approval service.
+
+    Returns:
+        The approvals.
+    """
+    return [_approval_response(approval) for approval in approvals.list_all()]
 
 
 @router.post(
@@ -342,10 +402,4 @@ async def decide_approval(
         ActionFailedError: The action failed, and can be retried. Mapped to a 502.
     """
     approval = await approvals.decide(approval_id, approve=body.decision == "approve")
-    return ApprovalResponse(
-        id=approval.id,
-        kind=approval.kind,
-        payload=approval.payload,
-        status=approval.status,
-        result=approval.result,
-    )
+    return _approval_response(approval)

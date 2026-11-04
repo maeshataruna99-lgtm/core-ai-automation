@@ -16,7 +16,8 @@ Used by: `ai_ops.agents.registry`, `ai_ops.services.workflow`, and `ai_ops.api.r
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from ai_ops.integrations.errors import IntegrationError
@@ -73,6 +74,7 @@ class Approval:
     payload: dict[str, Any]
     status: ApprovalStatus = "pending"
     result: dict[str, Any] | None = None
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
 
 
 class ApprovalService:
@@ -156,6 +158,19 @@ class ApprovalService:
             return self._approvals[approval_id]
         except KeyError:
             raise ApprovalNotFoundError(f"Approval {approval_id} does not exist") from None
+
+    def list_all(self) -> list[Approval]:
+        """Return every approval, newest first.
+
+        Why: A person needs one place to see what is waiting. Dicts keep insertion order, so
+        reversing gives newest first with no sorting.
+
+        Used by: `ai_ops.api.routes.list_approvals`.
+
+        Returns:
+            The approvals.
+        """
+        return list(reversed(self._approvals.values()))
 
     async def decide(self, approval_id: str, approve: bool) -> Approval:
         """Apply a person's decision.

@@ -22,10 +22,11 @@ dev = ["pytest>=8", "ruff>=0.6"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
-# Prompts and migrations are not Python code, so they must be listed to be included in a build.
+# Prompts, migrations, and the web interface are not Python code, so they must be listed to be included in a build.
 [tool.setuptools.package-data]
 "ai_ops.llm" = ["prompts/*.txt"]
 "ai_ops.integrations" = ["migrations/*.sql"]
+"ai_ops.ui" = ["*.html", "*.js", "*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -8,7 +8,7 @@
     "/health": {
       "get": {
         "summary": "Health",
-        "description": "Report that the API process is running and how many documents loaded.\n\nWhy: Gives people, scripts, and the demo a cheap way to check the API is up. It calls no\nexternal service, so it still answers when an LLM provider is down.\n\nUsed by: API clients over `GET /health`.\n\nArgs:\n    rag: The RAG service.\n\nReturns:\n    Status `ok` and the document count.",
+        "description": "Report that the API process is running, how many documents loaded, and the provider.\n\nWhy: Gives people, scripts, and the demo a cheap way to check the API is up. It calls no\nexternal service, so it still answers when an LLM provider is down.\n\nUsed by: API clients over `GET /health`, and the header of the web interface.\n\nArgs:\n    request: The current request.\n    rag: The RAG service.\n\nReturns:\n    Status `ok`, the document count, and the configured provider's name.",
         "operationId": "health_health_get",
         "responses": {
           "200": {
@@ -223,7 +223,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^ORD-\\d+$",
+              "pattern": "^ORD-[0-9]+$",
               "title": "Record Id"
             }
           }
@@ -258,6 +258,29 @@
               }
             },
             "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/approvals": {
+      "get": {
+        "summary": "List Approvals",
+        "description": "List all approvals, newest first.\n\nWhy: This gives a person one place to see what is waiting. It has no login, like the rest of\nthe API, which is another reason it stays bound to localhost.\n\nUsed by: the Approvals page of the web interface, and other API clients.\n\nArgs:\n    approvals: The approval service.\n\nReturns:\n    The approvals.",
+        "operationId": "list_approvals_approvals_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApprovalResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Approvals Approvals Get"
+                }
+              }
+            }
           }
         }
       }
@@ -400,6 +423,10 @@
               }
             ],
             "title": "Result"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
           }
         },
         "type": "object",
@@ -408,7 +435,8 @@
           "kind",
           "payload",
           "status",
-          "result"
+          "result",
+          "created_at"
         ],
         "title": "ApprovalResponse",
         "description": "An approval and its current state.\n\nWhy: `kind` and `payload` show exactly what is being approved.\n\nUsed by: `ai_ops.api.routes.decide_approval`."
@@ -611,15 +639,20 @@
           "documents": {
             "type": "integer",
             "title": "Documents"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
           }
         },
         "type": "object",
         "required": [
           "status",
-          "documents"
+          "documents",
+          "provider"
         ],
         "title": "HealthResponse",
-        "description": "Body of `GET /health`.\n\nWhy: Clients get a typed liveness answer. `documents` shows whether the knowledge base\nloaded, because a wrong directory only logs a warning and does not stop the API.\n\nUsed by: `ai_ops.api.routes.health`."
+        "description": "Body of `GET /health`.\n\nWhy: Clients get a typed liveness answer. `documents` shows whether the knowledge base\nloaded, because a wrong directory only logs a warning and does not stop the API. `provider`\nlets the interface show when answers come from the mock.\n\nUsed by: `ai_ops.api.routes.health`."
       },
       "RecordResponse": {
         "properties": {

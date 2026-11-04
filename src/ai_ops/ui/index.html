@@ -1,0 +1,47 @@
+<!doctype html>
+<!--
+  The page shell of the web interface.
+  Why: The structure stays here, and app.js fills in each page, so that the page can be read at a
+  glance. The Content-Security-Policy tells the browser to load and run only this app's own files,
+  which limits the damage if untrusted text ever got treated as markup.
+  Used by: the API, which serves it at /ui/.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'"
+    />
+    <title>AI Operations Assistant</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#page">Skip to content</a>
+    <header class="top-bar">
+      <h1>AI Operations Assistant</h1>
+      <p id="connection" class="badge" role="status">Connecting…</p>
+    </header>
+    <p id="mock-notice" class="notice notice-warning" hidden>
+      <strong>Mock provider.</strong> Answers only repeat your text, so they are not real. Retrieval,
+      tools, and approvals are real.
+    </p>
+    <div class="layout">
+      <nav class="side-nav" aria-label="Pages">
+        <ul id="navigation"></ul>
+      </nav>
+      <main id="page" class="page" tabindex="-1"></main>
+    </div>
+    <footer class="status-bar" id="last-request" aria-live="polite">No requests yet</footer>
+    <dialog id="confirm-dialog" class="dialog" aria-labelledby="confirm-title">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-detail" class="preserve-lines"></p>
+      <div class="actions">
+        <button type="button" id="confirm-cancel" class="button">Go back</button>
+        <button type="button" id="confirm-accept" class="button button-primary"></button>
+      </div>
+    </dialog>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

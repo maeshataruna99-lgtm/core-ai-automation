@@ -1,6 +1,6 @@
 # API guide
 
-The API listens on `http://127.0.0.1:8000`. While it runs, interactive docs are at `/docs`. That page loads its interface from a public CDN, so it needs internet access. The same contract is stored in `docs/openapi.json`, which needs nothing to read.
+The API listens on `http://127.0.0.1:8000`. The web interface is at `/`, which redirects to `/ui/`. While it runs, interactive docs are at `/docs`. That page loads its interface from a public CDN, so it needs internet access. The same contract is stored in `docs/openapi.json`, which needs nothing to read.
 
 Examples show real responses from the mock provider. Ids and timings differ on each run, and the mock provider echoes questions instead of answering them. Long text is shortened with `...`.
 
@@ -18,6 +18,7 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -ContentType appli
 | POST | `/ask` | Answer a question from the knowledge base, with sources |
 | POST | `/chat` | Run the agent, which can use tools |
 | POST | `/workflows/ticket` | Run the ticket workflow, or read a ticket's state |
+| GET | `/approvals` | List all approvals, newest first |
 | POST | `/approvals/{approval_id}` | Approve or reject a pending action |
 | GET | `/records/{record_id}` | Read one order |
 
@@ -28,7 +29,7 @@ curl http://127.0.0.1:8000/health
 ```
 
 ```json
-{"status": "ok", "documents": 5}
+{"status": "ok", "documents": 5, "provider": "mock"}
 ```
 
 ## Ask a question
@@ -97,11 +98,14 @@ curl -X POST http://127.0.0.1:8000/approvals/APPROVAL_ID -H "Content-Type: appli
   "kind": "update_record",
   "payload": {"record_id": "ORD-1002", "status": "shipped"},
   "status": "executed",
-  "result": {"id": "ORD-1002", "status": "shipped"}
+  "result": {"id": "ORD-1002", "status": "shipped"},
+  "created_at": "2026-11-04T10:49:18+00:00"
 }
 ```
 
 Approving twice is safe, and the action only runs once. A failed action can be retried by approving again. A decision cannot be reversed.
+
+`GET /approvals` returns a list of these objects, newest first. `status` is `pending`, `executing`, `executed`, `rejected`, or `failed`. The list is kept in memory, so it is empty after a restart.
 
 ## Read an order
 

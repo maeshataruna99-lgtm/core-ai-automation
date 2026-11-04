@@ -5,8 +5,8 @@
 ```text
 +-----------------------------+
 | Client                      |
+| - Web interface (/ui/)      |
 | - curl / API docs           |
-| - Optional Vue dashboard    |
 +--------------+--------------+
                |  HTTP/JSON  127.0.0.1:8000
                v
@@ -63,6 +63,7 @@ src/ai_ops/
   agents/         tool registry, tools, agent loop
   integrations/   repositories (SQL), third-party adapter, cache
   evaluation/     golden set, metrics, runner
+  ui/             web interface: plain HTML, CSS, and JavaScript, served at /ui/
   config.py       settings loaded from environment
   logging.py      structured logging
 tests/            unit, integration, evaluation
@@ -101,6 +102,7 @@ Do not create a new top-level package without a reason and an update to this doc
 | POST | `/workflows/ticket` | Run the ticket workflow |
 | POST | `/approvals/{id}` | Approve or reject a pending action |
 | GET | `/records/{id}` | Read a business record |
+| GET | `/approvals` | List approvals, newest first |
 
 Rules:
 - Every response model is a Pydantic class and is documented in the generated OpenAPI.
@@ -121,6 +123,6 @@ Rules:
 - Do not expose the API to a network without a separate security review.
 - Label all outputs as AI-generated suggestions in the UI.
 
-## 9. Optional frontend
+## 9. Web interface
 
-A Vue 3 dashboard consumes the same HTTP API. It is not part of the Python core. See `docs/OPTIONAL_VUE_FRONTEND.md`.
+The interface in `src/ai_ops/ui/` is plain HTML, CSS, and JavaScript with no build step. The API serves its files, but it holds no business logic and only calls the same public endpoints as any other client. See `docs/UI_UX_DESIGN.md`.

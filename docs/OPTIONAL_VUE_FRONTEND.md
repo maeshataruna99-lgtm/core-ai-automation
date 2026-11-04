@@ -1,5 +1,7 @@
 # Optional Vue Frontend Track
 
+**Status: not built.** A simple interface was needed to run the project, and plain HTML, CSS, and JavaScript were enough, with no Node.js, build step, or dependencies. See `docs/UI_UX_DESIGN.md`. The architecture rules below still apply. This track remains an option if the interface outgrows plain JavaScript, and its checklist below has not been run.
+
 ## 1. Purpose
 
 A Vue 3 dashboard can make the portfolio demo clearer, but it is not required for the API, the RAG pipeline, the agent, or the evaluation suite. Vue and Node.js are already in the author's skill set, so this track reuses that experience.

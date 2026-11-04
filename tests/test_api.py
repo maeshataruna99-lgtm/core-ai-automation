@@ -385,7 +385,7 @@ def test_health_reports_ok(client):
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "documents": 2}
+    assert response.json() == {"status": "ok", "documents": 2, "provider": "mock"}
 
 
 def test_ask_returns_answer_with_sources_and_metrics(client):

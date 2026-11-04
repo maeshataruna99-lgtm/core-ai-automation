@@ -15,13 +15,15 @@ class HealthResponse(BaseModel):
     """Body of `GET /health`.
 
     Why: Clients get a typed liveness answer. `documents` shows whether the knowledge base
-    loaded, because a wrong directory only logs a warning and does not stop the API.
+    loaded, because a wrong directory only logs a warning and does not stop the API. `provider`
+    lets the interface show when answers come from the mock.
 
     Used by: `ai_ops.api.routes.health`.
     """
 
     status: Literal["ok"]
     documents: int
+    provider: str
 
 
 class AskRequest(BaseModel):
@@ -182,6 +184,7 @@ class ApprovalResponse(BaseModel):
     payload: dict[str, Any]
     status: Literal["pending", "executing", "executed", "rejected", "failed"]
     result: dict[str, Any] | None
+    created_at: str
 
 
 class RecordResponse(BaseModel):
