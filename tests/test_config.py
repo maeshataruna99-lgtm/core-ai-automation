@@ -6,6 +6,7 @@ safe defaults must not change by accident.
 Used by: `pytest`, locally and in `.github/workflows/ci.yml`.
 """
 
+import asyncio
 import os
 import subprocess
 import sys
@@ -13,6 +14,9 @@ import sys
 import pytest
 
 from ai_ops.config import ConfigError, Settings
+from ai_ops.llm.factory import build_provider
+from ai_ops.llm.mock import MockProvider
+from ai_ops.llm.retry import RetryingProvider
 
 
 def test_defaults_bind_to_localhost_only():
@@ -42,6 +46,74 @@ def test_invalid_value_names_the_variable_without_echoing_the_value():
 
     assert "AI_OPS_PORT" in str(error.value)
     assert "secret-value" not in str(error.value)
+
+
+REAL_PROVIDER_ENV = {
+    "AI_OPS_LLM_PROVIDER": "openai_compatible",
+    "AI_OPS_LLM_BASE_URL": "https://llm.example.test/v1",
+    "AI_OPS_LLM_API_KEY": "sk-test-secret-key",
+    "AI_OPS_LLM_CHAT_MODEL": "chat-model",
+    "AI_OPS_LLM_EMBEDDING_MODEL": "embed-model",
+}
+
+
+def test_real_provider_reports_every_missing_setting():
+    """Check the error when real provider settings are incomplete.
+
+    Why: Naming all the missing variables at once saves fixing them one restart at a time.
+    The key that is present must not appear in the message.
+
+    Used by: pytest.
+    """
+    env = {
+        "AI_OPS_LLM_PROVIDER": "openai_compatible",
+        "AI_OPS_LLM_API_KEY": "sk-test-secret-key",
+    }
+
+    with pytest.raises(ConfigError) as error:
+        Settings.from_env(env)
+
+    message = str(error.value)
+    assert "AI_OPS_LLM_BASE_URL" in message
+    assert "AI_OPS_LLM_CHAT_MODEL" in message
+    assert "AI_OPS_LLM_EMBEDDING_MODEL" in message
+    assert "AI_OPS_LLM_API_KEY" not in message
+    assert "sk-test-secret-key" not in message
+
+
+def test_api_key_is_hidden_when_settings_are_printed():
+    """Check that printing settings does not reveal the key.
+
+    Why: Settings objects end up in logs and debug output.
+
+    Used by: pytest.
+    """
+    settings = Settings.from_env(REAL_PROVIDER_ENV)
+
+    assert "sk-test-secret-key" not in repr(settings)
+    assert "sk-test-secret-key" not in str(settings.model_dump())
+
+
+def test_provider_is_selected_by_configuration_only():
+    """Check that configuration alone decides the provider.
+
+    Why: Switching to a real provider must need no code change. The real provider is wrapped
+    with retries, and the mock has nothing to retry.
+
+    Used by: pytest.
+    """
+
+    async def build_and_close(settings):
+        """Build the provider and close its HTTP client in one event loop."""
+        provider = build_provider(settings)
+        await provider.aclose()
+        return provider
+
+    mock = asyncio.run(build_and_close(Settings(llm_provider="mock")))
+    real = asyncio.run(build_and_close(Settings.from_env(REAL_PROVIDER_ENV)))
+
+    assert isinstance(mock, MockProvider)
+    assert isinstance(real, RetryingProvider)
 
 
 def test_process_exits_with_clear_message_when_config_is_missing():

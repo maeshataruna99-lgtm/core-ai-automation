@@ -51,10 +51,10 @@
 - Prompt template loader.
 
 **Acceptance criteria**
-- [ ] Application runs fully with the mock provider and no network.
-- [ ] Real provider errors map to 502, timeouts to 504.
-- [ ] Retries are bounded and tested with a fake failing provider.
-- [ ] API keys never appear in logs or error messages.
+- [x] Application runs fully with the mock provider and no network.
+- [x] Real provider errors map to 502, timeouts to 504.
+- [x] Retries are bounded and tested with a fake failing provider.
+- [x] API keys never appear in logs or error messages.
 - [ ] Provider can be swapped without changing service code.
 
 ## Milestone 3 — Retrieval-Augmented Generation

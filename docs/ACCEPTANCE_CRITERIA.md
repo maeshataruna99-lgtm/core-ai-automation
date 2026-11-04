@@ -11,14 +11,14 @@
 - [ ] Valid requests return documented responses.
 - [ ] Invalid requests are rejected with 422 and a clear message.
 - [ ] Request size and agent step limits are enforced.
-- [ ] Upstream LLM failures return 502; timeouts return 504.
+- [x] Upstream LLM failures return 502; timeouts return 504.
 - [x] The API binds to 127.0.0.1 by default.
 
 ## LLM layer
-- [ ] Application runs fully with the mock provider.
-- [ ] A real provider can be selected through configuration only.
-- [ ] Retries are bounded and tested.
-- [ ] No API key appears in logs, errors, or the repository.
+- [x] Application runs fully with the mock provider.
+- [x] A real provider can be selected through configuration only.
+- [x] Retries are bounded and tested.
+- [x] No API key appears in logs, errors, or the repository.
 
 ## RAG
 - [ ] Answers cite source documents.

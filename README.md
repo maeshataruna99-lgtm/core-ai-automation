@@ -92,7 +92,13 @@ Then open `http://127.0.0.1:8000/health` or the generated docs at `http://127.0.
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `AI_OPS_LLM_PROVIDER` | Yes | | LLM provider. Only `mock` exists so far |
+| `AI_OPS_LLM_PROVIDER` | Yes | | `mock` (offline, no key) or `openai_compatible` |
+| `AI_OPS_LLM_BASE_URL` | With `openai_compatible` | | API root, such as `https://api.example.com/v1` |
+| `AI_OPS_LLM_API_KEY` | With `openai_compatible` | | Provider key. Set it only in the environment, never in a file in this repository |
+| `AI_OPS_LLM_CHAT_MODEL` | With `openai_compatible` | | Model for text generation |
+| `AI_OPS_LLM_EMBEDDING_MODEL` | With `openai_compatible` | | Model for embeddings |
+| `AI_OPS_LLM_TIMEOUT_SECONDS` | No | `30` | Time limit for each network step of one attempt |
+| `AI_OPS_LLM_MAX_RETRIES` | No | `2` | Retries for temporary failures, from 0 to 5 |
 | `AI_OPS_LOG_LEVEL` | No | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 | `AI_OPS_HOST` | No | `127.0.0.1` | Bind address |
 | `AI_OPS_PORT` | No | `8000` | Bind port |
@@ -108,7 +114,7 @@ The exact commands will be added as the features are built.
 
 ## Repository status
 
-Milestones 0 and 1: the project skeleton, tooling, CI, and the API foundation exist (`GET /health`, settings, structured logging, request ids, and consistent errors). The LLM, RAG, agent, and workflow features are not implemented yet.
+Milestones 0 to 2: the project skeleton, tooling, CI, the API foundation (`GET /health`, settings, structured logging, request ids, and consistent errors), and the LLM layer (provider interface, mock provider, OpenAI-compatible provider, retries, and prompt templates) exist. No endpoint calls the LLM layer yet, and the OpenAI-compatible provider has only been tested against a simulated API. The RAG, agent, and workflow features are not implemented yet.
 
 ## Commit messages
 

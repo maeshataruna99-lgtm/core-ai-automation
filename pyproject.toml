@@ -12,15 +12,19 @@ version = "0.1.0"
 description = "Educational AI operations assistant: LLM integration, RAG, agents, and workflow automation."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["fastapi>=0.115", "uvicorn>=0.30"]
+# httpx2 calls the LLM provider. FastAPI's TestClient also needs it, so tests share one client.
+dependencies = ["fastapi>=0.115", "httpx2>=2", "uvicorn>=0.30"]
 
 [project.optional-dependencies]
-# httpx2 is required by FastAPI's TestClient. Plain httpx triggers a deprecation warning.
-dev = ["httpx2>=2", "pytest>=8", "ruff>=0.6"]
+dev = ["pytest>=8", "ruff>=0.6"]
 
 # Src layout: packages live in src/, so tests must import the installed package.
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Prompt files are not Python code, so they must be listed to be included in a build.
+[tool.setuptools.package-data]
+"ai_ops.llm" = ["prompts/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

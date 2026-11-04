@@ -21,7 +21,7 @@ LOGGER_NAME = "ai_ops"
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 # Extra fields copied into the log line when a caller passes them through `extra=`.
-_EXTRA_FIELDS = ("method", "path", "status", "duration_ms")
+_EXTRA_FIELDS = ("method", "path", "status", "duration_ms", "attempt", "delay_s", "error")
 
 
 class JsonFormatter(logging.Formatter):

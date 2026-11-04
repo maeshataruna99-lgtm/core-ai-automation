@@ -8,6 +8,7 @@ Used by: `ai_ops.api.app.create_app` calls `register_error_handlers`.
 `ai_ops.api.middleware` calls `error_response` for unexpected exceptions.
 """
 
+import logging
 from http import HTTPStatus
 
 from fastapi import FastAPI, Request
@@ -16,7 +17,10 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from ai_ops.api.schemas import ErrorBody, ErrorDetail, ErrorResponse
-from ai_ops.logging import request_id_var
+from ai_ops.llm.provider import LLMError, LLMTimeoutError
+from ai_ops.logging import LOGGER_NAME, request_id_var
+
+logger = logging.getLogger(f"{LOGGER_NAME}.api")
 
 
 def error_response(
@@ -98,6 +102,30 @@ async def _handle_http_error(_: Request, exc: HTTPException) -> JSONResponse:
     return error_response(exc.status_code, code, str(exc.detail), headers=exc.headers)
 
 
+async def _handle_llm_error(_: Request, exc: LLMError) -> JSONResponse:
+    """Convert an LLM failure to a 504 (timeout) or 502 (anything else).
+
+    Why: Gateway statuses tell the client the problem is upstream, not in their request. The
+    client gets a fixed message. The internal one goes to the log, where it helps debugging.
+
+    Used by: FastAPI, through `register_error_handlers`.
+
+    Args:
+        _: The request, required by the handler signature but not used.
+        exc: The failure. `LLMError` messages are safe to log by design.
+
+    Returns:
+        A 502 or 504 response.
+
+    Side effects:
+        Writes one error log line.
+    """
+    logger.error("llm call failed", extra={"error": str(exc)})
+    if isinstance(exc, LLMTimeoutError):
+        return error_response(504, "upstream_timeout", "The LLM provider did not respond in time.")
+    return error_response(502, "upstream_error", "The LLM provider failed.")
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Attach the error handlers to an app.
 
@@ -112,3 +140,4 @@ def register_error_handlers(app: FastAPI) -> None:
     """
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
     app.add_exception_handler(HTTPException, _handle_http_error)
+    app.add_exception_handler(LLMError, _handle_llm_error)

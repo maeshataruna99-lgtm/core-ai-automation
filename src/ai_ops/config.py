@@ -12,7 +12,7 @@ import os
 from collections.abc import Mapping
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, model_validator
 
 ENV_PREFIX = "AI_OPS_"
 
@@ -36,7 +36,14 @@ class Settings(BaseModel):
 
     Attributes:
         llm_provider: LLM provider to use. It has no default on purpose, so nobody starts
-            a paid provider by accident. Milestone 2 adds the real provider and uses it.
+            a paid provider by accident.
+        llm_base_url: API root of the real provider.
+        llm_api_key: Key for the real provider. `SecretStr` hides it when printed.
+        llm_chat_model: Model name for text generation.
+        llm_embedding_model: Model name for embeddings.
+        llm_timeout_seconds: Time limit for each network step of one attempt.
+        llm_max_retries: Retries after the first attempt. Capped, because each retry adds a
+            full timeout to the worst-case wait.
         log_level: Minimum severity written to the logs.
         host: Bind address. The default accepts local connections only.
         port: Bind port.
@@ -44,10 +51,40 @@ class Settings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    llm_provider: Literal["mock"]
+    llm_provider: Literal["mock", "openai_compatible"]
+    llm_base_url: str | None = None
+    llm_api_key: SecretStr | None = None
+    llm_chat_model: str | None = None
+    llm_embedding_model: str | None = None
+    llm_timeout_seconds: float = Field(default=30.0, gt=0)
+    llm_max_retries: int = Field(default=2, ge=0, le=5)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1, le=65535)
+
+    @model_validator(mode="after")
+    def _require_real_provider_settings(self) -> "Settings":
+        """Check that the real provider has everything it needs.
+
+        Why: These fields are optional for the mock, so a per-field rule cannot express this.
+        Checking here makes a missing value fail at startup, not on the first request.
+
+        Used by: Pydantic, each time a `Settings` object is created.
+
+        Returns:
+            The settings, unchanged.
+
+        Raises:
+            ValueError: One or more values are missing. The message names their variables.
+        """
+        if self.llm_provider == "openai_compatible":
+            required = ("llm_base_url", "llm_api_key", "llm_chat_model", "llm_embedding_model")
+            missing = [
+                f"{ENV_PREFIX}{name.upper()}" for name in required if not getattr(self, name)
+            ]
+            if missing:
+                raise ValueError(f"openai_compatible requires {', '.join(missing)}")
+        return self
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
@@ -77,8 +114,12 @@ class Settings(BaseModel):
         try:
             return cls.model_validate(values)
         except ValidationError as exc:
+            # A whole-model error has no field location, and its message names the variables.
             problems = "; ".join(
                 f"{ENV_PREFIX}{str(error['loc'][0]).upper()}: {error['msg']}"
+                if error["loc"]
+                else error["msg"]
                 for error in exc.errors()
             )
-            raise ConfigError(problems) from exc
+            # `from None` because the Pydantic error text includes the rejected input values.
+            raise ConfigError(problems) from None

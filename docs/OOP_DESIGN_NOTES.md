@@ -15,7 +15,9 @@ This document records actual design decisions as implementation progresses.
 
 | Concept | Language | File / symbol | Status | Rationale |
 |---|---|---|---|---|
-| Interface (provider) | Python | Fill after implementation | Planned | Swap mock and real LLM without changing services |
+| Interface (provider) | Python | `src/ai_ops/llm/provider.py`, `LLMProvider` | Implemented | Swap mock and real LLM without changing services |
+| Decorator (retries) | Python | `src/ai_ops/llm/retry.py`, `RetryingProvider` | Implemented | Adds retries to any provider, keeps them out of each implementation. It owns the wrapped provider and closes it |
+| Factory (provider selection) | Python | `src/ai_ops/llm/factory.py`, `build_provider` | Implemented | One place names concrete providers. The app owns the result and closes it at shutdown |
 | Interface (vector store) | Python | Fill after implementation | Planned | Move from in-memory to a vector database |
 | Repository | Python | Fill after implementation | Planned | Keep SQL out of services and tools |
 | Adapter | Python | Fill after implementation | Planned | Isolate the third-party service |

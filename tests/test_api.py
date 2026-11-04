@@ -8,13 +8,17 @@ Used by: `pytest`, locally and in `.github/workflows/ci.yml`.
 
 import json
 
+import httpx2
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
 from ai_ops.api.app import create_app
 from ai_ops.config import Settings
+from ai_ops.llm.mock import MockProvider
+from ai_ops.llm.openai_compatible import OpenAICompatibleProvider
+from ai_ops.llm.provider import ChatMessage, GenerationResult, LLMProviderError, LLMTimeoutError
 
 
 @pytest.fixture
@@ -193,6 +197,175 @@ def test_crash_is_logged_with_the_id_returned_to_the_caller(capsys):
     line = next(log for log in read_log_lines(capsys) if log["severity"] == "ERROR")
     assert line["request_id"] == request_id
     assert "RuntimeError" in line["exception"]
+
+
+class BrokenProvider(MockProvider):
+    """Fake provider whose `generate` always fails with a given error.
+
+    Why: This proves the HTTP mapping without any network code.
+
+    Used by: `build_app_with_llm_route`.
+    """
+
+    def __init__(self, error: Exception) -> None:
+        """Store the error to raise and start with the provider open.
+
+        Why: Each test needs a different failure. `closed` lets a test check shutdown.
+
+        Used by: the LLM error tests in this module.
+
+        Args:
+            error: The exception `generate` raises.
+        """
+        self.error = error
+        self.closed = False
+
+    async def generate(self, messages: list[ChatMessage]) -> GenerationResult:
+        """Raise the stored error.
+
+        Why: This is the failure under test.
+
+        Used by: the `/test/llm` route.
+
+        Args:
+            messages: Ignored.
+
+        Raises:
+            Exception: The stored error, always.
+        """
+        raise self.error
+
+    async def aclose(self) -> None:
+        """Record that the app closed the provider.
+
+        Why: Lets a test check the shutdown step.
+
+        Used by: the lifespan function in `ai_ops.api.app`.
+        """
+        self.closed = True
+
+
+def build_app_with_llm_route(provider) -> FastAPI:
+    """Build an app with a test route that calls the given provider.
+
+    Why: No real endpoint calls the LLM until Milestone 3.
+
+    Used by: the LLM error tests in this module.
+
+    Args:
+        provider: The provider to inject into `create_app`.
+
+    Returns:
+        The app, with `GET /test/llm` added.
+    """
+    app = create_app(Settings(llm_provider="mock"), llm_provider=provider)
+
+    @app.get("/test/llm")
+    async def call_llm(request: Request) -> dict[str, str]:
+        """Call the provider stored on the app."""
+        result = await request.app.state.llm_provider.generate(
+            [ChatMessage(role="user", content="Hello")]
+        )
+        return {"text": result.text}
+
+    return app
+
+
+@pytest.mark.parametrize(
+    ("error", "status", "code"),
+    [
+        (LLMProviderError("HTTP 500 from /chat/completions"), 502, "upstream_error"),
+        (LLMTimeoutError("Timeout calling /chat/completions"), 504, "upstream_timeout"),
+    ],
+)
+def test_llm_failures_map_to_gateway_statuses(error, status, code):
+    """Check the HTTP status for each kind of provider failure.
+
+    Why: 502 and 504 tell the client the problem is upstream, not in their request. The
+    message is fixed, because the internal one can name endpoints.
+
+    Used by: pytest.
+
+    Args:
+        error: The failure the provider raises.
+        status: The expected HTTP status.
+        code: The expected error code.
+    """
+    with TestClient(build_app_with_llm_route(BrokenProvider(error))) as client:
+        response = client.get("/test/llm")
+
+    assert response.status_code == status
+    assert response.json()["error"]["code"] == code
+    assert "/chat/completions" not in response.text
+
+
+def test_llm_failure_log_never_contains_the_api_key(capsys):
+    """Check the logs of a failing real provider, from HTTP call to log line.
+
+    Why: This is the full path a key could leak through: the provider echoes the key in its
+    401 body, and the failure is then logged and returned to the client.
+
+    Used by: pytest.
+    """
+    secret = "sk-test-secret-key"
+
+    def reject(request: httpx2.Request) -> httpx2.Response:
+        """Reject the call and echo the key, as some real APIs do."""
+        return httpx2.Response(401, json={"error": f"Incorrect API key: {secret}"})
+
+    provider = OpenAICompatibleProvider(
+        base_url="https://llm.example.test/v1",
+        api_key=secret,
+        chat_model="chat-model",
+        embedding_model="embed-model",
+        timeout_seconds=5,
+        transport=httpx2.MockTransport(reject),
+    )
+
+    with TestClient(build_app_with_llm_route(provider)) as client:
+        response = client.get("/test/llm")
+
+    assert response.status_code == 502
+    assert secret not in response.text
+    logs = capsys.readouterr().err
+    assert "HTTP 401" in logs
+    assert secret not in logs
+
+
+def test_default_app_uses_the_configured_mock_provider():
+    """Check the whole app works with the mock provider and no network.
+
+    Why: Local runs, tests, and the demo depend on this.
+
+    Used by: pytest.
+    """
+    app = create_app(Settings(llm_provider="mock"))
+
+    @app.get("/test/llm")
+    async def call_llm(request: Request) -> dict[str, str]:
+        """Call the provider that `create_app` built from the settings."""
+        result = await request.app.state.llm_provider.generate(
+            [ChatMessage(role="user", content="Hello")]
+        )
+        return {"text": result.text}
+
+    with TestClient(app) as client:
+        assert client.get("/test/llm").json() == {"text": "[mock] Hello"}
+
+
+def test_provider_is_closed_when_the_app_stops():
+    """Check the shutdown step.
+
+    Why: A real provider holds open connections that must be released.
+
+    Used by: pytest.
+    """
+    provider = BrokenProvider(RuntimeError("unused"))
+
+    with TestClient(build_app_with_llm_route(provider)):
+        assert provider.closed is False
+
+    assert provider.closed is True
 
 
 def test_health_reports_ok(client):
