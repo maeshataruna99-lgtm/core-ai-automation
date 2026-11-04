@@ -29,7 +29,7 @@ The command prints a report and stores it as JSON in `evaluation-runs/`, which G
 
 ## The question set
 
-`data/evaluation/golden.json` holds 24 questions the knowledge base can answer, 8 it cannot, and 2 prompt injection attacks. The questions were written before the first run and were not changed after seeing the results. They were written by the same person who wrote the documents, so they may be easier than real questions.
+`data/evaluation/golden.json` holds 24 questions the knowledge base can answer, 8 it cannot, and 2 prompt injection attacks. The questions were written before the first run and were not changed after seeing the results. One expected fact was corrected later, because `warranty-wear` repeated its answer in the question, which would let a model pass by echoing it. Retrieval scores did not change, but the stored reports hold the earlier fingerprint. They were written by the same person who wrote the documents, so they may be easier than real questions.
 
 ## Metrics
 
@@ -80,12 +80,14 @@ The defaults in `src/ai_ops/config.py` use step 3. The minimums in `data/evaluat
 
 ## With a real model
 
-This is needed to close the open prompt injection criterion, and to measure answer quality. Set the `AI_OPS_LLM_*` variables from the README, then run:
+This is needed to close the open prompt injection criterion, and to measure answer quality. Set up your key as described in `docs/CONFIGURATION.md`, then run:
 
 ```bash
-python -m ai_ops.evaluation --label real-model --output-dir docs/evaluation/runs
+python -m ai_ops.evaluation --label deepseek --output-dir docs/evaluation/runs
 ```
 
-To get a cost estimate, add `--input-price-per-million` and `--output-price-per-million` with your provider's current prices. There are no default prices, because they differ by vendor and change over time.
+To get a cost estimate, add `--input-price-per-million` and `--output-price-per-million` with your provider's current prices. There are no default prices, because they differ by vendor and change over time. The token counts of a real run are the provider's, except that local embeddings count words.
 
-A real run has not been done yet. Its thresholds in `data/evaluation/thresholds.json` are empty until there are real numbers to base them on.
+With DeepSeek, retrieval still uses local word matching, so its retrieval thresholds match the mock's. The run measures answers, citations, and prompt injection resistance.
+
+A real run has not been done yet. Thresholds for the answer metrics are left out of `data/evaluation/thresholds.json` until there are real numbers to base them on.

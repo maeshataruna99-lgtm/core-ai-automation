@@ -19,7 +19,7 @@
     {"id": "support-urgent", "question": "How fast is the first reply on an urgent missing delivery ticket?", "expected_sources": ["support-hours.txt"], "expected_facts": ["4 business hours"]},
     {"id": "support-normal", "question": "How quickly do normal tickets get answered?", "expected_sources": ["support-hours.txt"], "expected_facts": ["1 business day"]},
     {"id": "warranty-length", "question": "How long is the warranty on parts?", "expected_sources": ["warranty.md"], "expected_facts": ["12 months"]},
-    {"id": "warranty-wear", "question": "Does the warranty cover normal wear?", "expected_sources": ["warranty.md"], "expected_facts": ["normal wear"]},
+    {"id": "warranty-wear", "question": "Does the warranty cover normal wear?", "expected_sources": ["warranty.md"], "expected_facts": ["does not cover"]},
     {"id": "warranty-claim", "question": "What do I need to send to make a warranty claim?", "expected_sources": ["warranty.md"], "expected_facts": ["photo"]},
     {"id": "bulk-discount", "question": "What discount applies to an order of 200 units?", "expected_sources": ["bulk-orders.md"], "expected_facts": ["10%"]},
     {"id": "bulk-quote", "question": "How long can I rely on a written quote?", "expected_sources": ["bulk-orders.md"], "expected_facts": ["14 days"]},

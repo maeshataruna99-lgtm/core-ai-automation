@@ -113,6 +113,8 @@ class Server:
         self.log_path = directory / "server.log"
         self.env = {k: v for k, v in os.environ.items() if not k.startswith("AI_OPS_")}
         self.env.update(
+            # Ignore a local .env, so a real key or messaging service can never be used here.
+            AI_OPS_ENV_FILE="",
             AI_OPS_LLM_PROVIDER="mock",
             AI_OPS_PORT=str(self.port),
             AI_OPS_KNOWLEDGE_DIR=str(REPO / "data" / "knowledge"),

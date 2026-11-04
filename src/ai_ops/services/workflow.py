@@ -255,7 +255,7 @@ class TicketWorkflow:
         Returns:
             The id of an existing order, or None.
         """
-        match = re.search(r"ORD-\d+", ticket, re.IGNORECASE)
+        match = re.search(r"ORD-[0-9]+", ticket, re.IGNORECASE)
         if match is None:
             return None
         record = self._records.get(match.group().upper())

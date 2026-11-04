@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from ai_ops.api.app import create_app
-from ai_ops.config import ENV_PREFIX, Settings
+from ai_ops.config import ENV_FILE_VARIABLE, ENV_PREFIX, Settings
 
 REPO = Path(__file__).parent.parent
 DOCUMENTS = [
@@ -114,6 +114,7 @@ def test_configuration_guide_covers_every_setting():
     """
     guide = read("docs/CONFIGURATION.md")
     expected = {f"{ENV_PREFIX}{name.upper()}" for name in Settings.model_fields}
+    expected.add(ENV_FILE_VARIABLE)
 
     assert set(re.findall(rf"{ENV_PREFIX}[A-Z_]+", guide)) == expected
 

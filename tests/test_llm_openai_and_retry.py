@@ -13,6 +13,8 @@ import json
 import httpx2
 import pytest
 
+from ai_ops.config import Settings
+from ai_ops.llm.factory import build_provider as build_configured_provider
 from ai_ops.llm.mock import MockProvider
 from ai_ops.llm.openai_compatible import OpenAICompatibleProvider
 from ai_ops.llm.provider import (
@@ -526,6 +528,43 @@ def test_mock_answers_with_the_tool_result_after_a_tool_call():
 
     assert result.tool_calls == ()
     assert result.text == "[mock] Status: shipped"
+
+
+def test_deepseek_preset_sends_the_documented_request_and_embeds_locally():
+    """Check the DeepSeek setup against its documented API, offline.
+
+    Why: The URL, the model, and the switched-off thinking mode are the contract with DeepSeek. Its
+    documentation lists no embeddings endpoint, so embedding must never call the network here. The
+    in-memory server fails the test if that happens.
+
+    Used by: pytest.
+    """
+    seen = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        """Record each request, then answer normally."""
+        seen.append((str(request.url), json.loads(request.content)))
+        return fake_api(request)
+
+    settings = Settings(llm_provider="deepseek", llm_api_key=API_KEY, llm_max_retries=0)
+
+    async def scenario():
+        """Embed and generate, then close, in one event loop."""
+        provider = build_configured_provider(settings, transport=httpx2.MockTransport(handler))
+        try:
+            return await provider.embed(["refund policy"]), await provider.generate(MESSAGES)
+        finally:
+            await provider.aclose()
+
+    embedded, generated = asyncio.run(scenario())
+
+    assert len(embedded.vectors) == 1
+    assert generated.text == "Hi there"
+    assert len(seen) == 1
+    url, body = seen[0]
+    assert url == "https://api.deepseek.com/chat/completions"
+    assert body["model"] == "deepseek-flash"
+    assert body["thinking"] == {"type": "disabled"}
 
 
 class FailingProvider:

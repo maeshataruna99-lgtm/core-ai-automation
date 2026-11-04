@@ -96,6 +96,7 @@ class OpenAICompatibleProvider:
         embedding_model: str,
         timeout_seconds: float,
         transport: httpx2.AsyncBaseTransport | None = None,
+        extra_chat_parameters: dict[str, Any] | None = None,
     ) -> None:
         """Create the HTTP client.
 
@@ -110,7 +111,9 @@ class OpenAICompatibleProvider:
             embedding_model: Model name for `embed`.
             timeout_seconds: Limit for each network step of one attempt.
             transport: Replaces the network. Tests pass an in-memory transport.
+            extra_chat_parameters: Vendor-specific fields added to each chat request.
         """
+        self._extra_chat_parameters = extra_chat_parameters or {}
         self._chat_model = chat_model
         self._embedding_model = embedding_model
         self._client = httpx2.AsyncClient(
@@ -185,6 +188,7 @@ class OpenAICompatibleProvider:
         payload: dict[str, Any] = {
             "model": self._chat_model,
             "messages": [_message_to_wire(message) for message in messages],
+            **self._extra_chat_parameters,
         }
         if tools:
             payload["tools"] = [_tool_to_wire(tool) for tool in tools]

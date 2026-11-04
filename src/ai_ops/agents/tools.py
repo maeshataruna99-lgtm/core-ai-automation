@@ -29,12 +29,13 @@ class SearchKnowledgeInput(BaseModel):
 class LookupRecordInput(BaseModel):
     """Input of `lookup_record`.
 
-    Why: The pattern rejects anything that is not an order id.
+    Why: The pattern rejects anything that is not an order id. `[0-9]` is used because the digit
+    shorthand also matches digits from other scripts.
 
     Used by: `register_default_tools`.
     """
 
-    record_id: str = Field(pattern=r"^ORD-\d+$")
+    record_id: str = Field(pattern=r"^ORD-[0-9]+$")
 
 
 class UpdateRecordInput(BaseModel):
@@ -45,7 +46,7 @@ class UpdateRecordInput(BaseModel):
     Used by: `register_default_tools`.
     """
 
-    record_id: str = Field(pattern=r"^ORD-\d+$")
+    record_id: str = Field(pattern=r"^ORD-[0-9]+$")
     status: RecordStatus
 
 

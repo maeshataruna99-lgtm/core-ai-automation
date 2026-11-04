@@ -6,7 +6,16 @@ build/
 dist/
 .pytest_cache/
 .ruff_cache/
-.env
+evaluation-runs/
 *.db
 *.db-journal
-evaluation-runs/
+
+# Secrets. scripts/check_secrets.py also blocks these in a commit.
+.env
+.env.*
+*.env
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx

@@ -1,0 +1,13 @@
+#!/bin/sh
+# Stops a commit that contains a secret.
+# Why: Once a key is in Git history and pushed, it must be treated as stolen, so the check has to
+# run before the commit exists. It stops the commit if it cannot run at all.
+# Used by: Git, after `git config core.hooksPath .githooks`. See docs/CONFIGURATION.md.
+root=$(git rev-parse --show-toplevel) || exit 1
+for python in python python3 "py -3"; do
+    if $python --version >/dev/null 2>&1; then
+        exec $python "$root/scripts/check_secrets.py" --staged
+    fi
+done
+echo "Commit stopped: Python was not found, so the secret check could not run." >&2
+exit 1
