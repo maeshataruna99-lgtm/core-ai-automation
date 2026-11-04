@@ -4,7 +4,7 @@
 - [x] Project installs and tests pass on Windows.
 - [x] Project installs and tests pass on Linux.
 - [ ] No OS-specific code in core logic.
-- [ ] Setup instructions match the tested commands.
+- [x] Setup instructions match the tested commands.
 - [x] CI runs lint and tests.
 
 ## API behaviour

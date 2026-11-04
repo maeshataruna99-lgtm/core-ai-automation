@@ -12,7 +12,7 @@
 **Acceptance criteria**
 - [x] A clean checkout installs and runs tests on Windows.
 - [x] A clean checkout installs and runs tests on Linux.
-- [ ] Setup instructions are reproducible.
+- [x] Setup instructions are reproducible.
 - [x] CI reports lint and test status.
 
 ## Milestone 1 — Python API foundation
