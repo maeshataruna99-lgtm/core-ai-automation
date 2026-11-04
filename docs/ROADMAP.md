@@ -153,7 +153,7 @@
 - Resume bullet points that match completed work.
 
 **Acceptance criteria**
-- [ ] A fresh clone can be set up by following the documentation.
+- [x] A fresh clone can be set up by following the documentation.
 - [ ] The demo shows a grounded answer with sources, a tool lookup, and an approval-gated action.
 - [x] No unsupported claims about production use, accuracy, or employer experience.
 - [x] Every resume claim is supported by repository evidence.
