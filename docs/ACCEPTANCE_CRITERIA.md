@@ -52,11 +52,11 @@
 - [ ] The API remains usable without the UI.
 
 ## Portfolio readiness
-- [ ] README includes setup and run steps.
-- [ ] Architecture diagram exists.
-- [ ] API examples are documented.
-- [ ] Evaluation report is included.
-- [ ] Demo video or GIF is available.
-- [ ] Tests can be run by reviewers.
-- [ ] Limitations are clearly stated.
-- [ ] CV bullet points describe only completed and verified features.
+- [x] README includes setup and run steps.
+- [x] Architecture diagram exists.
+- [x] API examples are documented.
+- [x] Evaluation report is included.
+- [x] Demo video or GIF is available.
+- [x] Tests can be run by reviewers.
+- [x] Limitations are clearly stated.
+- [x] CV bullet points describe only completed and verified features.

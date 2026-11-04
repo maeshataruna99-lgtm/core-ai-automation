@@ -1,79 +1,57 @@
 # AI Operations Assistant
 
-Educational AI engineering project and portfolio piece for demonstrating AI-powered applications in Python: LLM integration, Retrieval-Augmented Generation (RAG), AI agents and chatbots, workflow automation, and integration with databases and third-party services.
+An operations assistant for a small company, built in Python to learn and demonstrate AI engineering. It answers questions from documents with citations, looks up orders with an agent, keeps a person in control of every change, and measures its own retrieval quality.
 
-**Target role:** AI Engineer  
-**Platforms:** Windows + Linux  
-**Implementation order:** Python API foundation → LLM layer → RAG → agent and workflow → data integrations → evaluation → optional Vue dashboard
+> **This is an educational project with synthetic data.** It has not been deployed to production, and it has not yet been run against a real LLM. See [Known limitations](#known-limitations).
 
-> This is a learning project. It is not a production system. Do not feed it real customer data, and do not claim production deployment, accuracy figures, or company experience that the repository cannot show.
+![Demo of the assistant in a terminal](docs/demo/demo.gif)
 
-## Project goals
+## What it does
 
-- Design and build an AI-powered application that solves a concrete business need (see `docs/PROJECT_SPECIFICATION.md`).
-- Integrate LLMs and APIs behind a provider interface so models can be swapped.
-- Implement RAG with embeddings and a vector store, with source citations.
-- Build an agent/chatbot that calls tools to automate a business workflow.
-- Integrate with a SQL database and one third-party-style service.
-- Evaluate and optimise for accuracy, latency, cost, and reliability, with tests that prove it.
-- Produce an honest portfolio: tests, docs, and demo material.
+| Feature | How it works |
+|---|---|
+| **Answers from documents (RAG)** | Finds relevant text, answers only from it, and returns the sources. With nothing relevant, it says so without calling the model |
+| **Agent with tools** | A hand-written loop that searches documents and reads orders, with limits on steps and time |
+| **Human approval** | A model can only propose a change. Only a person's approval runs it, and no tool lets a model approve |
+| **Ticket workflow** | Classifies a ticket, finds the order, drafts a reply, and waits for approval before sending. Retries never send twice |
+| **Replaceable parts** | The LLM provider, vector store, record storage, and messaging service each sit behind an interface |
+| **Evaluation** | A fixed question set measures retrieval, and CI fails if a score drops |
 
-## Languages and technology choices
+## Try it
 
-| Area | Choice | Why |
-|---|---|---|
-| Core language | Python 3.12 | The posting requires Python proficiency and API-based applications |
-| API framework | FastAPI + Pydantic | Typed request/response contracts, automatic docs |
-| Data | SQL (SQLite first, PostgreSQL later) | The posting requires integration with databases |
-| Vector search | In-memory store first, then pgvector, Qdrant, or Chroma | Learn the concept before adding infrastructure |
-| LLM access | Provider interface, with a mock provider and an OpenAI-compatible provider | Tests run without a paid key |
-| Cache / queue (optional) | Redis | Listed in the posting skills; add only when a concrete need appears |
-| Frontend (optional) | Vue 3 + Node.js | Already in the author's skill set; the core works without it |
-| Tests | pytest | Unit, integration, and evaluation tests |
-| Lint / format | ruff | One tool, fast |
-| Version control | Git | |
-| CI | GitHub Actions (optional) | |
-
-Not selected: Go, Laravel, React, Next.js, Computer Vision. They appear in the posting's skill chips, but the responsibilities and requirements text only demands Python, LLMs/GenAI, RAG, and integration. Add one only if the specification asks for it.
-
-## MVP scope
-
-An operations assistant for a small company:
-- Answers questions from an internal knowledge base (RAG with citations).
-- Looks up and updates business records (orders or tickets) through tools.
-- Runs one automated workflow end to end (for example: classify an incoming ticket, look up the record, draft a reply, request human approval).
-- Exposes everything through a documented HTTP API.
-- Ships with an evaluation set and a test report.
-
-## Development setup
-
-Requires Python 3.12 and Git.
+You need Python 3.12 and Git. No API key is needed, because a mock provider stands in for the model.
 
 Windows (PowerShell):
 
 ```powershell
+git clone https://github.com/maeshataruna99-lgtm/core-ai-automation.git
+cd core-ai-automation
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
+python scripts/demo.py
 ```
+
+If PowerShell blocks `Activate.ps1`, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` first. It only applies to that window.
 
 Linux:
 
 ```bash
+git clone https://github.com/maeshataruna99-lgtm/core-ai-automation.git
+cd core-ai-automation
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
+python scripts/demo.py
 ```
 
-Run the checks (same on both platforms; CI runs them on Windows and Linux):
+The demo starts the API, walks through each feature, checks every result, and stops the API. It changes nothing in the repository.
 
-```bash
-ruff check .
-ruff format --check .
-pytest
-```
+The mock provider echoes questions instead of answering them, so the demo shows retrieval, tools, approvals, and workflows, but not answer quality. Real answers need an OpenAI-compatible provider, which you can set up with [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ## Run the API
+
+From the repository root, so that it finds the sample documents:
 
 Windows (PowerShell):
 
@@ -88,97 +66,128 @@ Linux:
 AI_OPS_LLM_PROVIDER=mock python -m ai_ops
 ```
 
-Run it from the repository root, so that it finds the sample documents in `data/knowledge`. Then open `http://127.0.0.1:8000/health` or the generated docs at `http://127.0.0.1:8000/docs`. Stop the API with Ctrl+C.
+Then open `http://127.0.0.1:8000/docs` to try each endpoint. Stop the API with Ctrl+C.
 
-Ask a question:
+![Interactive API docs](docs/demo/api-docs.png)
 
-```bash
-curl -X POST http://127.0.0.1:8000/ask -H "Content-Type: application/json" -d "{\"question\": \"How long do card refunds take?\"}"
+See [docs/API.md](docs/API.md) for examples of every endpoint.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    client["Client: curl, API docs, demo script"] -->|"HTTP/JSON, localhost only"| api["API layer: FastAPI<br/>validation, request ids, error mapping"]
+    api --> rag["RAG service"]
+    api --> agent["Agent loop<br/>step and time limits"]
+    api --> workflow["Ticket workflow"]
+    api --> approval["Approval service"]
+    agent --> registry["Tool registry<br/>validates and logs each call"]
+    registry -->|"read tools"| rag
+    registry -->|"read tools"| records
+    registry -->|"write tools only propose"| approval
+    workflow --> rag
+    workflow --> records
+    workflow -->|"sending needs approval"| approval
+    approval -->|"only after a person approves"| records["Record repository: SQLite"]
+    approval -->|"only after a person approves"| outbound["Outbound adapter: stub or HTTP"]
+    rag --> llm["LLM provider interface<br/>mock or OpenAI-compatible, with retries"]
+    rag --> store["Vector store interface: in memory"]
+    agent --> llm
+    workflow --> llm
 ```
 
-The response has the `answer`, whether anything relevant was `found`, the `sources` it used, token `usage`, and `latency_ms`. The mock provider does not answer questions: it echoes the question with a `[mock]` prefix, so it only demonstrates retrieval and the response format. Real answers need `openai_compatible`.
+The rule that matters most is that a model can only propose a change:
 
-Documents are loaded from `AI_OPS_KNOWLEDGE_DIR` at startup and kept in memory. With a real provider, every restart pays to embed them again.
-
-Use the agent, which reads records and proposes changes through tools:
-
-```bash
-curl -X POST http://127.0.0.1:8000/chat -H "Content-Type: application/json" -d "{\"message\": \"Please update ORD-1002 to shipped\"}"
+```mermaid
+sequenceDiagram
+    actor Staff
+    participant API
+    participant Agent
+    participant Model
+    participant Approvals
+    participant Records
+    Staff->>API: POST /chat "Update ORD-1002 to shipped"
+    API->>Agent: run
+    Agent->>Model: messages and tool list
+    Model-->>Agent: call update_record
+    Agent->>Approvals: request approval
+    Approvals-->>Agent: pending, nothing has changed
+    Agent-->>Staff: reply and approval id
+    Staff->>API: POST /approvals/{id} approve
+    API->>Approvals: decide
+    Approvals->>Records: update status
+    Records-->>Staff: executed
 ```
 
-Nothing changes yet. The response lists an id in `pending_approvals`, and only a person can run the action:
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module boundaries and data flows, and [docs/OOP_DESIGN_NOTES.md](docs/OOP_DESIGN_NOTES.md) for the design patterns, with the code that uses each one.
+
+## Technology
+
+| Area | Choice | Why |
+|---|---|---|
+| Language | Python 3.12 | Typed, with a strong AI ecosystem |
+| API | FastAPI and Pydantic | Typed contracts and generated docs |
+| LLM access | Own interface over plain HTTP (`httpx2`) | No vendor SDK, so providers can be swapped and the requests stay visible |
+| Agent | Hand-written loop | Every step can be read, tested, and limited, without a framework |
+| Vector search | In-memory cosine similarity | Learn the concept first. A database can replace it behind the interface |
+| Storage | SQLite with numbered SQL migrations | Needs no server, and uses parameterised queries |
+| Quality | pytest, ruff, GitHub Actions | Tests, lint, and evaluation run on Windows and Linux |
+
+## Test and evaluate
 
 ```bash
-curl -X POST http://127.0.0.1:8000/approvals/APPROVAL_ID -H "Content-Type: application/json" -d "{\"decision\": \"approve\"}"
+pytest
+ruff check .
+ruff format --check .
 ```
 
-Run the ticket workflow, which classifies a ticket, looks up the order, drafts a reply, and waits for approval before sending:
+Tests need no network and no API key. To run the evaluation, set `AI_OPS_LLM_PROVIDER=mock` as shown above, then:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/workflows/ticket -H "Content-Type: application/json" -d "{\"ticket_id\": \"T-1\", \"message\": \"Where is my delivery for ORD-1001?\"}"
-```
-
-Read an order directly:
-
-```bash
-curl http://127.0.0.1:8000/records/ORD-1002
-```
-
-Posting the same ticket again is safe: it continues after a failure, or else reports the current state. By default, sending goes through a stub, so no message leaves the application. Set `AI_OPS_OUTBOUND_PROVIDER=http` to use the HTTP adapter.
-
-Orders are stored in the SQLite file at `AI_OPS_DATABASE_PATH`, which is created on first start and survives restarts. Delete the file to return to the sample data. Approvals and workflow progress are still kept in memory, so they are lost on restart. There is no login, so do not expose this API to a network.
-
-| Variable | Required | Default | Purpose |
-|---|---|---|---|
-| `AI_OPS_LLM_PROVIDER` | Yes | | `mock` (offline, no key) or `openai_compatible` |
-| `AI_OPS_LLM_BASE_URL` | With `openai_compatible` | | API root, such as `https://api.example.com/v1` |
-| `AI_OPS_LLM_API_KEY` | With `openai_compatible` | | Provider key. Set it only in the environment, never in a file in this repository |
-| `AI_OPS_LLM_CHAT_MODEL` | With `openai_compatible` | | Model for text generation |
-| `AI_OPS_LLM_EMBEDDING_MODEL` | With `openai_compatible` | | Model for embeddings |
-| `AI_OPS_LLM_TIMEOUT_SECONDS` | No | `30` | Time limit for each network step of one attempt |
-| `AI_OPS_LLM_MAX_RETRIES` | No | `2` | Retries for temporary failures, from 0 to 5 |
-| `AI_OPS_KNOWLEDGE_DIR` | No | `data/knowledge` | Directory of `.md` and `.txt` documents |
-| `AI_OPS_RAG_CHUNK_SIZE` | No | `800` | Maximum characters per chunk |
-| `AI_OPS_RAG_CHUNK_OVERLAP` | No | `100` | Characters repeated between chunks |
-| `AI_OPS_RAG_TOP_K` | No | `2` | Maximum chunks used per question |
-| `AI_OPS_RAG_MIN_SCORE` | No | `0.10` | Lowest similarity counted as relevant. Measured with the mock provider, so measure it again for a real embedding model |
-| `AI_OPS_AGENT_MAX_STEPS` | No | `5` | Maximum model calls for one chat message, from 1 to 20 |
-| `AI_OPS_AGENT_TIMEOUT_SECONDS` | No | `60` | Time limit for one chat message |
-| `AI_OPS_DATABASE_PATH` | No | `data/ai_ops.db` | SQLite file for orders |
-| `AI_OPS_OUTBOUND_PROVIDER` | No | `stub` | `stub` (sends nothing) or `http` |
-| `AI_OPS_OUTBOUND_BASE_URL` | With `http` | | API root of the messaging service |
-| `AI_OPS_OUTBOUND_API_KEY` | With `http` | | Messaging service key. Set it only in the environment, never in a file in this repository |
-| `AI_OPS_OUTBOUND_TIMEOUT_SECONDS` | No | `10` | Time limit for each network step of a send |
-| `AI_OPS_LOG_LEVEL` | No | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
-| `AI_OPS_HOST` | No | `127.0.0.1` | Bind address |
-| `AI_OPS_PORT` | No | `8000` | Bind port |
-
-The API exits with a clear message when a required variable is missing or a value is invalid. Logs are JSON lines on stderr. Every response has an `X-Request-ID` header that matches the logs.
-
-## Evaluate
-
-Windows (PowerShell):
-
-```powershell
-$env:AI_OPS_LLM_PROVIDER = "mock"
 python -m ai_ops.evaluation
 ```
 
-Linux:
+| Metric, on 24 answerable and 8 unanswerable questions | Result |
+|---|---|
+| The right document was retrieved (`hit_rate`) | 0.958 |
+| The retrieved text holds the expected fact (`context_fact_recall`) | 0.958 |
+| An unanswerable question got "not found" (`not_found_accuracy`) | 0.500 |
+| Answer quality, citations, and prompt injection resistance | Not measured, needs a real model |
 
-```bash
-AI_OPS_LLM_PROVIDER=mock python -m ai_ops.evaluation
-```
+**These numbers describe retrieval with a mock that matches exact words, on synthetic data. They are not the accuracy of an AI model.** The settings were tuned on the same questions, so results on new questions would likely be lower. See [docs/EVALUATION.md](docs/EVALUATION.md) for the method, the trade-offs, and the stored reports.
 
-This runs a fixed question set through the RAG pipeline, prints a report, and fails if a score falls below its minimum. CI runs it too. See `docs/EVALUATION.md` for the metrics, the measured results, and their limits. With the mock provider, the scores describe retrieval on the synthetic sample data, not the accuracy of an AI model.
+## Known limitations
 
-## Repository status
+- **No real LLM has been used.** The OpenAI-compatible provider and tool calling have only been tested against simulated responses. How a real model answers, chooses tools, or reacts to prompt injection is not verified.
+- **The HTTP messaging adapter has not met a real vendor.** Its request format is a typical one, and a real service would probably need changes.
+- **No login.** Anyone who can reach the API can read orders and approve actions, so it binds to localhost by default. Do not expose it to a network.
+- **Some state is lost on restart.** Orders persist in SQLite, but approvals, workflow progress, and the vector store are in memory. Documents are embedded again at each startup, which costs money with a real provider.
+- **Single user, small scale.** Vector search compares every chunk, SQLite calls briefly block the event loop, and there is no conversation history.
+- **Logs can hold personal data.** Tool inputs are logged as an audit trail, so a search query appears there as typed.
+- **No optional parts yet.** There is no Redis cache and no web interface. The API docs page needs internet access for its interface.
 
-Milestones 0 to 6: the project skeleton, tooling, CI, the API foundation (`GET /health`, settings, structured logging, request ids, and consistent errors), the LLM layer (provider interface, mock provider, OpenAI-compatible provider, retries, and prompt templates), RAG (`POST /ask`, document loading, chunking, and an in-memory vector store), the agent (`POST /chat`, tool registry, and human approval through `POST /approvals/{id}`), the ticket workflow (`POST /workflows/ticket`), the integrations (SQLite with migrations, `GET /records/{id}`, and an HTTP outbound adapter), and the evaluation suite exist. The OpenAI-compatible provider and the HTTP adapter have only been tested against simulated services, so how a real model answers, chooses tools, or handles prompt injection is not verified. The optional cache is not implemented.
+## Documentation
+
+| File | Purpose |
+|---|---|
+| [docs/OVERVIEW_ID.md](docs/OVERVIEW_ID.md) | Project overview in Indonesian |
+| [docs/API.md](docs/API.md) | Every endpoint, with examples |
+| [docs/openapi.json](docs/openapi.json) | The API contract |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | All settings |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, module boundaries, and data flows |
+| [docs/OOP_DESIGN_NOTES.md](docs/OOP_DESIGN_NOTES.md) | Design patterns, with the code that uses each one |
+| [docs/EVALUATION.md](docs/EVALUATION.md) | How to evaluate, measured results, and their limits |
+| [docs/PROJECT_SPECIFICATION.md](docs/PROJECT_SPECIFICATION.md) | Requirements and what is out of scope |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Milestones, and which criteria are verified |
+| [docs/ACCEPTANCE_CRITERIA.md](docs/ACCEPTANCE_CRITERIA.md) | Verification checklist |
+| [docs/PORTFOLIO_POSITIONING.md](docs/PORTFOLIO_POSITIONING.md) | Honest project description and its evidence |
+| [docs/PYTHON_LEARNING_PATH.md](docs/PYTHON_LEARNING_PATH.md) | Learning stages, and the code documentation rule |
+| [docs/UI_UX_DESIGN.md](docs/UI_UX_DESIGN.md) | Planned interface specification, not built |
+| [docs/OPTIONAL_VUE_FRONTEND.md](docs/OPTIONAL_VUE_FRONTEND.md) | Planned optional frontend, not built |
 
 ## Commit messages
 
-Commits follow [Conventional Commits](https://www.conventionalcommits.org/). CI checks every push to `main` and every pull request with commitlint; the rules live in `commitlint.config.mjs`.
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/), and CI checks them with the rules in `commitlint.config.mjs`.
 
 ```text
 <type>(<scope>): <subject>
@@ -188,19 +197,4 @@ Commits follow [Conventional Commits](https://www.conventionalcommits.org/). CI 
 - **Scope (optional):** `api`, `services`, `llm`, `retrieval`, `agents`, `integrations`, `evaluation`, `frontend`, `docs`, `ci`, `deps`.
 - **Subject:** imperative, lower case, no trailing period. The header is at most 72 characters.
 
-Examples: `feat(retrieval): add chunk overlap setting`, `fix(api): return 504 on provider timeout`.
-
-## Document map
-
-| File | Purpose |
-|---|---|
-| `docs/PROJECT_SPECIFICATION.md` | What to build, requirements, out of scope |
-| `docs/ARCHITECTURE.md` | Components, module boundaries, API contract |
-| `docs/ROADMAP.md` | Milestones and acceptance checkboxes |
-| `docs/ACCEPTANCE_CRITERIA.md` | Verification checklist |
-| `docs/EVALUATION.md` | How to evaluate, measured results, and their limits |
-| `docs/PYTHON_LEARNING_PATH.md` | Learning stages tied to project problems |
-| `docs/OOP_DESIGN_NOTES.md` | Record of implemented design decisions |
-| `docs/UI_UX_DESIGN.md` | Chat and dashboard UI specification |
-| `docs/OPTIONAL_VUE_FRONTEND.md` | Optional Vue track |
-| `docs/PORTFOLIO_POSITIONING.md` | Honest description and limits |
+Example: `feat(retrieval): add chunk overlap setting`.

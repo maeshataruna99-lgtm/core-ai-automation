@@ -155,8 +155,8 @@
 **Acceptance criteria**
 - [ ] A fresh clone can be set up by following the documentation.
 - [ ] The demo shows a grounded answer with sources, a tool lookup, and an approval-gated action.
-- [ ] No unsupported claims about production use, accuracy, or employer experience.
-- [ ] Every resume claim is supported by repository evidence.
+- [x] No unsupported claims about production use, accuracy, or employer experience.
+- [x] Every resume claim is supported by repository evidence.
 
 ## Suggested order
 

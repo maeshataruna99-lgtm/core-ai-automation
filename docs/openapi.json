@@ -1,0 +1,831 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AI Operations Assistant",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Report that the API process is running and how many documents loaded.\n\nWhy: Gives people, scripts, and the demo a cheap way to check the API is up. It calls no\nexternal service, so it still answers when an LLM provider is down.\n\nUsed by: API clients over `GET /health`.\n\nArgs:\n    rag: The RAG service.\n\nReturns:\n    Status `ok` and the document count.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ask": {
+      "post": {
+        "summary": "Ask",
+        "description": "Answer a question from the knowledge base.\n\nWhy: This is the main feature of the assistant. The extra `responses` entries put the\nreal error format in the generated docs, in place of FastAPI's default.\n\nUsed by: API clients over `POST /ask`.\n\nArgs:\n    body: The validated request.\n    rag: The RAG service.\n\nReturns:\n    The answer with its sources, token usage, and latency.\n\nRaises:\n    LLMError: A model call failed. `ai_ops.api.errors` maps it to 502 or 504.",
+        "operationId": "ask_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chat": {
+      "post": {
+        "summary": "Chat",
+        "description": "Run the agent for one message.\n\nWhy: This is how staff use the assistant's tools. Each call starts a new conversation, because\nkeeping history is not needed for the MVP.\n\nUsed by: API clients over `POST /chat`.\n\nArgs:\n    body: The validated request.\n    agent: The agent.\n\nReturns:\n    The reply, why the agent stopped, its tool calls, and any actions awaiting approval.\n\nRaises:\n    LLMError: A model call failed. `ai_ops.api.errors` maps it to 502 or 504.",
+        "operationId": "chat_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workflows/ticket": {
+      "post": {
+        "summary": "Run Ticket Workflow",
+        "description": "Run the ticket workflow, or report its state if it already ran.\n\nWhy: Posting the same ticket again is safe, and it continues after a failure. A retry can use\nthe same request, so a client needs no extra logic.\n\nUsed by: API clients over `POST /workflows/ticket`.\n\nArgs:\n    body: The validated request.\n    workflow: The workflow.\n\nReturns:\n    The ticket's state, with the draft and the approval id.\n\nRaises:\n    WorkflowConflictError: The id was already used with different text. Mapped to a 409.\n    LLMError: A model call failed. Mapped to a 502 or 504.",
+        "operationId": "run_ticket_workflow_workflows_ticket_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TicketRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/records/{record_id}": {
+      "get": {
+        "summary": "Get Record",
+        "description": "Read one order.\n\nWhy: Staff can check a record directly, for example after approving a change. This reads\ncustomer data with no login, which is another reason the API stays bound to localhost.\n\nUsed by: API clients over `GET /records/{record_id}`.\n\nArgs:\n    record_id: The order id, such as `ORD-1001`.\n    records: The repository.\n\nReturns:\n    The order.\n\nRaises:\n    RecordNotFoundError: The order does not exist. Mapped to a 404.",
+        "operationId": "get_record_records__record_id__get",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^ORD-\\d+$",
+              "title": "Record Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/approvals/{approval_id}": {
+      "post": {
+        "summary": "Decide Approval",
+        "description": "Approve or reject a pending action.\n\nWhy: This is the only way to run a write action, and it is not available to the model as a\ntool. The MVP has no login, so this relies on the API being bound to localhost.\n\nUsed by: API clients over `POST /approvals/{approval_id}`.\n\nArgs:\n    approval_id: The approval id.\n    body: The validated decision.\n    approvals: The approval service.\n\nReturns:\n    The approval in its new state.\n\nRaises:\n    ApprovalNotFoundError: No approval has this id. Mapped to a 404.\n    ApprovalConflictError: The decision does not fit the state. Mapped to a 409.\n    ActionFailedError: The action failed, and can be retried. Mapped to a 502.",
+        "operationId": "decide_approval_approvals__approval_id__post",
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApprovalDecisionRequest": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "title": "Decision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "ApprovalDecisionRequest",
+        "description": "Body of `POST /approvals/{id}`.\n\nWhy: Only these two exact words are accepted, so an unclear value can never count as approval.\n\nUsed by: `ai_ops.api.routes.decide_approval`."
+      },
+      "ApprovalResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "executing",
+              "executed",
+              "rejected",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "payload",
+          "status",
+          "result"
+        ],
+        "title": "ApprovalResponse",
+        "description": "An approval and its current state.\n\nWhy: `kind` and `payload` show exactly what is being approved.\n\nUsed by: `ai_ops.api.routes.decide_approval`."
+      },
+      "AskRequest": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Question"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "AskRequest",
+        "description": "Body of `POST /ask`.\n\nWhy: The limits apply before any model call. A blank question has nothing to search for,\nand a very long one costs tokens. Whitespace is removed first, so \"   \" counts as blank.\n\nUsed by: `ai_ops.api.routes.ask`."
+      },
+      "AskResponse": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "found": {
+            "type": "boolean",
+            "title": "Found"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceResponse"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageResponse"
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer",
+          "found",
+          "sources",
+          "usage",
+          "latency_ms"
+        ],
+        "title": "AskResponse",
+        "description": "Body of a successful `POST /ask`.\n\nWhy: `found` is false when the knowledge base has no relevant text. That is a normal result,\nso it is a 200 and not an error.\n\nUsed by: `ai_ops.api.routes.ask`."
+      },
+      "ChatRequest": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ChatRequest",
+        "description": "Body of `POST /chat`.\n\nWhy: The limit matters more than for `/ask`, because the message is sent again on every step\nof the agent's loop.\n\nUsed by: `ai_ops.api.routes.chat`."
+      },
+      "ChatResponse": {
+        "properties": {
+          "reply": {
+            "type": "string",
+            "title": "Reply"
+          },
+          "stop_reason": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "max_steps",
+              "timeout"
+            ],
+            "title": "Stop Reason"
+          },
+          "tool_calls": {
+            "items": {
+              "$ref": "#/components/schemas/ToolCallResponse"
+            },
+            "type": "array",
+            "title": "Tool Calls"
+          },
+          "pending_approvals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pending Approvals"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageResponse"
+          },
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reply",
+          "stop_reason",
+          "tool_calls",
+          "pending_approvals",
+          "usage",
+          "latency_ms"
+        ],
+        "title": "ChatResponse",
+        "description": "Body of a successful `POST /chat`.\n\nWhy: `stop_reason` shows whether the agent finished, and `pending_approvals` lists actions that\nare waiting for a person. Reaching a limit is a normal result, so it is still a 200.\n\nUsed by: `ai_ops.api.routes.chat`."
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            },
+            "type": "array",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "request_id",
+          "details"
+        ],
+        "title": "ErrorBody",
+        "description": "The content of an error response.\n\nWhy: `code` is stable for programs, `message` is for people, and `request_id` links the\nerror to the logs.\n\nUsed by: `ErrorResponse`."
+      },
+      "ErrorDetail": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "ErrorDetail",
+        "description": "One invalid field in a validation error.\n\nWhy: Clients can show the problem next to the right input.\n\nUsed by: `ai_ops.api.errors`."
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "description": "The body of every error response.\n\nWhy: Clients parse a single shape for all errors.\n\nUsed by: `ai_ops.api.errors.error_response`."
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "documents": {
+            "type": "integer",
+            "title": "Documents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "documents"
+        ],
+        "title": "HealthResponse",
+        "description": "Body of `GET /health`.\n\nWhy: Clients get a typed liveness answer. `documents` shows whether the knowledge base\nloaded, because a wrong directory only logs a warning and does not stop the API.\n\nUsed by: `ai_ops.api.routes.health`."
+      },
+      "RecordResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "customer": {
+            "type": "string",
+            "title": "Customer"
+          },
+          "item": {
+            "type": "string",
+            "title": "Item"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "processing",
+              "shipped",
+              "delivered",
+              "cancelled"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "customer",
+          "item",
+          "status"
+        ],
+        "title": "RecordResponse",
+        "description": "Body of `GET /records/{id}`.\n\nWhy: A separate model decides exactly what leaves the API, independent of the storage.\n\nUsed by: `ai_ops.api.routes.get_record`."
+      },
+      "SourceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "document_id",
+          "position",
+          "score",
+          "text"
+        ],
+        "title": "SourceResponse",
+        "description": "One retrieved chunk used for an answer.\n\nWhy: Showing the text and score lets a person check the answer against its source. Clients\nmust render `text` as plain text, because it comes from documents.\n\nUsed by: `AskResponse`."
+      },
+      "TicketRequest": {
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "title": "Ticket Id"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket_id",
+          "message"
+        ],
+        "title": "TicketRequest",
+        "description": "Body of `POST /workflows/ticket`.\n\nWhy: The id is an idempotency key and ends up in logs, so it is limited to safe characters.\n\nUsed by: `ai_ops.api.routes.run_ticket_workflow`."
+      },
+      "TicketResponse": {
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "title": "Ticket Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_approval",
+              "sending",
+              "sent",
+              "rejected",
+              "send_failed"
+            ],
+            "title": "Status"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Id"
+          },
+          "draft": {
+            "type": "string",
+            "title": "Draft"
+          },
+          "approval_id": {
+            "type": "string",
+            "title": "Approval Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket_id",
+          "status",
+          "category",
+          "record_id",
+          "draft",
+          "approval_id"
+        ],
+        "title": "TicketResponse",
+        "description": "Body of a successful `POST /workflows/ticket`.\n\nWhy: Holds what a person needs to review the draft, and the id to approve or reject it.\n\nUsed by: `ai_ops.api.routes.run_ticket_workflow`."
+      },
+      "ToolCallResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "arguments": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Arguments"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error",
+              "pending_approval"
+            ],
+            "title": "Status"
+          },
+          "approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "arguments",
+          "status",
+          "approval_id"
+        ],
+        "title": "ToolCallResponse",
+        "description": "One tool request the agent made, and what happened to it.\n\nWhy: A person should be able to see what the agent actually did, and not only what its reply\nclaims it did.\n\nUsed by: `ChatResponse`."
+      },
+      "UsageResponse": {
+        "properties": {
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          }
+        },
+        "type": "object",
+        "required": [
+          "input_tokens",
+          "output_tokens"
+        ],
+        "title": "UsageResponse",
+        "description": "Token counts for one API call.\n\nWhy: Tokens are the main cost of an LLM application, so each answer reports them.\n\nUsed by: `AskResponse`."
+      }
+    }
+  }
+}

@@ -66,6 +66,7 @@ src/ai_ops/
   config.py       settings loaded from environment
   logging.py      structured logging
 tests/            unit, integration, evaluation
+scripts/          demo.py, which runs the whole demo with one command
 data/             sample documents and golden set
 docs/
 ```
