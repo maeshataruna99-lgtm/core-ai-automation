@@ -59,6 +59,20 @@ The exact commands will be added once the build files exist.
 
 This is the foundation and implementation plan. It does not claim that the software has been implemented.
 
+## Commit messages
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/). CI checks every push to `main` and every pull request with commitlint; the rules live in `commitlint.config.mjs`.
+
+```text
+<type>(<scope>): <subject>
+```
+
+- **Type:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- **Scope (optional):** `api`, `services`, `llm`, `retrieval`, `agents`, `integrations`, `evaluation`, `frontend`, `docs`, `ci`, `deps`.
+- **Subject:** imperative, lower case, no trailing period. The header is at most 72 characters.
+
+Examples: `feat(retrieval): add chunk overlap setting`, `fix(api): return 504 on provider timeout`.
+
 ## Document map
 
 | File | Purpose |
