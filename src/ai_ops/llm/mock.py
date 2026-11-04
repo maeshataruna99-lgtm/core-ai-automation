@@ -10,7 +10,14 @@ import hashlib
 import math
 import re
 
-from ai_ops.llm.provider import ChatMessage, EmbeddingResult, GenerationResult, Usage
+from ai_ops.llm.provider import (
+    ChatMessage,
+    EmbeddingResult,
+    GenerationResult,
+    ToolCall,
+    ToolSchema,
+    Usage,
+)
 
 MODEL_NAME = "mock"
 # Large enough that two different words rarely land on the same position.
@@ -66,6 +73,35 @@ def _embed_text(text: str) -> list[float]:
     return [value / length for value in vector] if length else vector
 
 
+def _choose_tool_call(text: str, tool_names: set[str]) -> ToolCall | None:
+    """Pick a tool with simple keyword rules.
+
+    Why: The offline demo needs something that behaves like a model calling tools. These rules
+    are only for that demo: choosing tools well is what a real model is for.
+
+    Used by: `MockProvider.generate`.
+
+    Args:
+        text: The user's message.
+        tool_names: The tools on offer.
+
+    Returns:
+        A tool call, or None if no offered tool fits.
+    """
+    record = re.search(r"ORD-\d+", text, re.IGNORECASE)
+    status = re.search(r"\b(processing|shipped|delivered|cancelled)\b", text, re.IGNORECASE)
+    wants_change = re.search(r"\b(update|change|set|mark)\b", text, re.IGNORECASE)
+    if record and status and wants_change and "update_record" in tool_names:
+        arguments = {"record_id": record.group().upper(), "status": status.group().lower()}
+        return ToolCall(id="mock-1", name="update_record", arguments=arguments)
+    if record and "lookup_record" in tool_names:
+        arguments = {"record_id": record.group().upper()}
+        return ToolCall(id="mock-1", name="lookup_record", arguments=arguments)
+    if "search_knowledge" in tool_names:
+        return ToolCall(id="mock-1", name="search_knowledge", arguments={"query": text})
+    return None
+
+
 class MockProvider:
     """Offline implementation of `LLMProvider`.
 
@@ -74,24 +110,38 @@ class MockProvider:
     Used by: `ai_ops.llm.factory.build_provider` and tests.
     """
 
-    async def generate(self, messages: list[ChatMessage]) -> GenerationResult:
-        """Echo the last line of the last message with a `[mock]` prefix.
+    async def generate(
+        self, messages: list[ChatMessage], tools: list[ToolSchema] | None = None
+    ) -> GenerationResult:
+        """Echo the last line of the last message, or choose a tool when tools are offered.
 
         Why: Echoing makes it easy for a test to see what reached the model. The prefix keeps
         a mock answer from being mistaken for a real one in a demo. Only the last line is
         used because the RAG prompt ends with the question, so the context is not repeated.
         The mock does not answer anything: real answers need a real provider.
 
-        Used by: services and tests, through the `LLMProvider` interface.
+        Used by: services, the agent, and tests, through the `LLMProvider` interface.
 
         Args:
             messages: The conversation. It must not be empty.
+            tools: Tools the mock may choose from. It only asks for a tool when the last
+                message came from the user, so a tool result ends the agent's loop.
 
         Returns:
-            The echoed text, with word counts as token usage.
+            The echoed text or a tool call, with word counts as token usage.
         """
-        text = f"[mock] {messages[-1].content.splitlines()[-1]}"
+        last = messages[-1]
         input_tokens = sum(len(_words(message.content)) for message in messages)
+        if tools and last.role == "user":
+            call = _choose_tool_call(last.content, {tool.name for tool in tools})
+            if call is not None:
+                return GenerationResult(
+                    text="",
+                    model=MODEL_NAME,
+                    usage=Usage(input_tokens=input_tokens, output_tokens=0),
+                    tool_calls=(call,),
+                )
+        text = f"[mock] {last.content.splitlines()[-1]}"
         usage = Usage(input_tokens=input_tokens, output_tokens=len(_words(text)))
         return GenerationResult(text=text, model=MODEL_NAME, usage=usage)
 

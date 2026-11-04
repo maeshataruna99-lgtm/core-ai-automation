@@ -52,6 +52,9 @@ class Settings(BaseModel):
         rag_top_k: Maximum chunks used per question.
         rag_min_score: Lowest similarity counted as relevant. It depends on the embedding
             model, so check it when the model changes.
+        agent_max_steps: Maximum model calls for one chat message. Capped, because each step
+            costs tokens.
+        agent_timeout_seconds: Time limit for one chat message.
         log_level: Minimum severity written to the logs.
         host: Bind address. The default accepts local connections only.
         port: Bind port.
@@ -71,6 +74,8 @@ class Settings(BaseModel):
     rag_chunk_overlap: int = Field(default=100, ge=0)
     rag_top_k: int = Field(default=4, gt=0)
     rag_min_score: float = Field(default=0.15, ge=-1, le=1)
+    agent_max_steps: int = Field(default=5, ge=1, le=20)
+    agent_timeout_seconds: float = Field(default=60.0, gt=0)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1, le=65535)

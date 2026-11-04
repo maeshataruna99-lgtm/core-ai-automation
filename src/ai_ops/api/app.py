@@ -11,16 +11,23 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from ai_ops.agents.loop import Agent
+from ai_ops.agents.registry import ToolRegistry
+from ai_ops.agents.tools import register_default_tools
 from ai_ops.api.errors import register_error_handlers
 from ai_ops.api.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
 from ai_ops.api.routes import router
 from ai_ops.config import Settings
+from ai_ops.integrations.outbound import StubOutboundService
+from ai_ops.integrations.records import InMemoryRecordRepository, sample_records
 from ai_ops.llm.factory import build_provider
 from ai_ops.llm.provider import LLMProvider
 from ai_ops.logging import configure_logging
 from ai_ops.retrieval.documents import load_documents
 from ai_ops.retrieval.vector_store import InMemoryVectorStore
+from ai_ops.services.approval import ApprovalService
 from ai_ops.services.rag import RagService
+from ai_ops.services.workflow import TicketWorkflow
 
 # Far more than any valid request needs today. A question is limited to 1000 characters.
 MAX_BODY_BYTES = 64 * 1024
@@ -81,6 +88,24 @@ def create_app(settings: Settings, llm_provider: LLMProvider | None = None) -> F
         chunk_overlap=settings.rag_chunk_overlap,
         top_k=settings.rag_top_k,
         min_score=settings.rag_min_score,
+    )
+    records = InMemoryRecordRepository(sample_records())
+    app.state.outbound = StubOutboundService()
+    app.state.approvals = ApprovalService()
+    registry = ToolRegistry(app.state.approvals)
+    register_default_tools(registry, app.state.rag_service, records)
+    app.state.agent = Agent(
+        provider=app.state.llm_provider,
+        registry=registry,
+        max_steps=settings.agent_max_steps,
+        timeout_seconds=settings.agent_timeout_seconds,
+    )
+    app.state.ticket_workflow = TicketWorkflow(
+        provider=app.state.llm_provider,
+        rag=app.state.rag_service,
+        records=records,
+        approvals=app.state.approvals,
+        outbound=app.state.outbound,
     )
     # The middleware added last runs first, so the request id exists before the body is read.
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=MAX_BODY_BYTES)

@@ -17,6 +17,7 @@ from ai_ops.llm.provider import (
     GenerationResult,
     LLMError,
     LLMProvider,
+    ToolSchema,
 )
 from ai_ops.logging import LOGGER_NAME
 
@@ -93,15 +94,19 @@ class RetryingProvider:
                 await self._sleep(delay)
         return await call()
 
-    async def generate(self, messages: list[ChatMessage]) -> GenerationResult:
+    async def generate(
+        self, messages: list[ChatMessage], tools: list[ToolSchema] | None = None
+    ) -> GenerationResult:
         """Call the wrapped provider's `generate` with retries.
 
-        Why: Callers use the same interface with or without retries.
+        Why: Callers use the same interface with or without retries. Retrying is safe here,
+        because a model call only proposes tool calls and does not run them.
 
         Used by: services, through the `LLMProvider` interface.
 
         Args:
             messages: The conversation so far.
+            tools: Tools the model may ask to call.
 
         Returns:
             The wrapped provider's result.
@@ -109,7 +114,7 @@ class RetryingProvider:
         Raises:
             LLMError: The call failed after any retries.
         """
-        return await self._with_retries(lambda: self._inner.generate(messages))
+        return await self._with_retries(lambda: self._inner.generate(messages, tools))
 
     async def embed(self, texts: list[str]) -> EmbeddingResult:
         """Call the wrapped provider's `embed` with retries.

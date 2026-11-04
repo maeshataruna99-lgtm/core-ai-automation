@@ -57,7 +57,7 @@
 ```text
 src/ai_ops/
   api/            FastAPI app, routers, request/response schemas
-  services/       chat, rag, workflow, approval
+  services/       rag, workflow, approval
   llm/            provider interface, mock provider, openai-compatible provider, prompts/
   retrieval/      chunking, embeddings, vector store interface and implementations
   agents/         tool registry, tools, agent loop

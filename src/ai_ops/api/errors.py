@@ -19,6 +19,12 @@ from starlette.exceptions import HTTPException
 from ai_ops.api.schemas import ErrorBody, ErrorDetail, ErrorResponse
 from ai_ops.llm.provider import LLMError, LLMTimeoutError
 from ai_ops.logging import LOGGER_NAME, request_id_var
+from ai_ops.services.approval import (
+    ActionFailedError,
+    ApprovalConflictError,
+    ApprovalNotFoundError,
+)
+from ai_ops.services.workflow import WorkflowConflictError
 
 logger = logging.getLogger(f"{LOGGER_NAME}.api")
 
@@ -126,6 +132,34 @@ async def _handle_llm_error(_: Request, exc: LLMError) -> JSONResponse:
     return error_response(502, "upstream_error", "The LLM provider failed.")
 
 
+# Service errors with their HTTP status and code. Services do not know about HTTP, so this table
+# keeps the translation in the API layer. Each of these messages is safe to show to a client.
+_SERVICE_ERRORS: dict[type[Exception], tuple[int, str]] = {
+    ApprovalNotFoundError: (404, "approval_not_found"),
+    ApprovalConflictError: (409, "approval_conflict"),
+    ActionFailedError: (502, "action_failed"),
+    WorkflowConflictError: (409, "ticket_conflict"),
+}
+
+
+async def _handle_service_error(_: Request, exc: Exception) -> JSONResponse:
+    """Convert a service error using the table above.
+
+    Why: One handler and one table are easier to read than a handler per error type.
+
+    Used by: FastAPI, through `register_error_handlers`.
+
+    Args:
+        _: The request, required by the handler signature but not used.
+        exc: The service error.
+
+    Returns:
+        The response for this error type.
+    """
+    status, code = _SERVICE_ERRORS[type(exc)]
+    return error_response(status, code, str(exc))
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Attach the error handlers to an app.
 
@@ -141,3 +175,5 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
     app.add_exception_handler(HTTPException, _handle_http_error)
     app.add_exception_handler(LLMError, _handle_llm_error)
+    for error_type in _SERVICE_ERRORS:
+        app.add_exception_handler(error_type, _handle_service_error)

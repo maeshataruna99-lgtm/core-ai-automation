@@ -21,6 +21,8 @@ from ai_ops.llm.provider import (
     GenerationResult,
     LLMProviderError,
     LLMTimeoutError,
+    ToolCall,
+    ToolSchema,
     Usage,
 )
 from ai_ops.llm.retry import RetryingProvider
@@ -280,6 +282,252 @@ def test_api_key_echoed_by_provider_never_reaches_the_error_message():
     assert API_KEY not in repr(error.value)
 
 
+LOOKUP_TOOL = ToolSchema(
+    name="lookup_record",
+    description="Look up a record.",
+    parameters={"type": "object", "properties": {"record_id": {"type": "string"}}},
+)
+
+
+def test_generate_sends_tools_and_parses_tool_calls():
+    """Check the tool calling wire format in both directions.
+
+    Why: This format is the contract with the vendor. Arguments arrive as a JSON string, and
+    the rest of the code should only see a dict.
+
+    Used by: pytest.
+    """
+    seen = {}
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        """Record the tools sent, then answer with a tool call."""
+        seen.update(json.loads(request.content))
+        return httpx2.Response(
+            200,
+            json={
+                "model": "chat-model",
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "lookup_record",
+                                        "arguments": '{"record_id": "ORD-1"}',
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            },
+        )
+
+    async def scenario() -> GenerationResult:
+        """Call the provider and close it in one event loop."""
+        provider = build_provider(handler)
+        try:
+            return await provider.generate(MESSAGES, tools=[LOOKUP_TOOL])
+        finally:
+            await provider.aclose()
+
+    result = asyncio.run(scenario())
+
+    assert seen["tools"] == [
+        {
+            "type": "function",
+            "function": {
+                "name": "lookup_record",
+                "description": "Look up a record.",
+                "parameters": {"type": "object", "properties": {"record_id": {"type": "string"}}},
+            },
+        }
+    ]
+    assert result.text == ""
+    assert result.tool_calls == (ToolCall("call_1", "lookup_record", {"record_id": "ORD-1"}),)
+
+
+def test_tool_call_history_uses_the_vendor_format():
+    """Check how earlier tool calls and results are sent back to the model.
+
+    Why: The model only sees its earlier tool calls through this history, and an API rejects a
+    tool result that does not point at a matching call id.
+
+    Used by: pytest.
+    """
+    seen = {}
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        """Record the messages, then answer normally."""
+        seen.update(json.loads(request.content))
+        return fake_api(request)
+
+    call = ToolCall("call_1", "lookup_record", {"record_id": "ORD-1"})
+    history = [
+        ChatMessage(role="assistant", content="", tool_calls=(call,)),
+        ChatMessage(role="tool", content="found", tool_call_id="call_1"),
+    ]
+
+    async def scenario() -> None:
+        """Call the provider and close it in one event loop."""
+        provider = build_provider(handler)
+        try:
+            await provider.generate(history)
+        finally:
+            await provider.aclose()
+
+    asyncio.run(scenario())
+
+    assert seen["messages"] == [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "lookup_record", "arguments": '{"record_id": "ORD-1"}'},
+                }
+            ],
+        },
+        {"role": "tool", "content": "found", "tool_call_id": "call_1"},
+    ]
+
+
+def test_invalid_tool_arguments_json_raises_provider_error():
+    """Check a tool call whose arguments are not valid JSON.
+
+    Why: Models can produce broken JSON. A raw `JSONDecodeError` would surface as a 500.
+
+    Used by: pytest.
+    """
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        """Answer with arguments that cannot be parsed."""
+        function = {"name": "lookup_record", "arguments": "{not json"}
+        call = {"id": "call_1", "type": "function", "function": function}
+        return httpx2.Response(
+            200,
+            json={
+                "model": "chat-model",
+                "choices": [{"message": {"content": None, "tool_calls": [call]}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            },
+        )
+
+    with pytest.raises(LLMProviderError):
+        asyncio.run(generate_and_close(build_provider(handler)))
+
+
+def test_retry_wrapper_passes_tools_through():
+    """Check that retries do not lose the tools.
+
+    Why: Without the tools, the agent would silently get answers that never call one.
+
+    Used by: pytest.
+    """
+    seen = {}
+
+    class Recording(MockProvider):
+        """Mock provider that records the tools it receives."""
+
+        async def generate(self, messages, tools=None):
+            """Record the tools, then answer like the mock."""
+            seen["tools"] = tools
+            return await super().generate(messages, tools)
+
+    asyncio.run(RetryingProvider(Recording(), max_retries=1).generate(MESSAGES, [LOOKUP_TOOL]))
+
+    assert seen["tools"] == [LOOKUP_TOOL]
+
+
+def tool_schema(name: str) -> ToolSchema:
+    """Build a tool schema with only a name.
+
+    Why: The mock only looks at which tool names are offered.
+
+    Used by: the mock tool routing tests.
+
+    Args:
+        name: The tool name.
+
+    Returns:
+        The schema.
+    """
+    return ToolSchema(name=name, description="", parameters={})
+
+
+ALL_TOOLS = [tool_schema(n) for n in ("search_knowledge", "lookup_record", "update_record")]
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_name", "expected_arguments"),
+    [
+        ("What is the status of ORD-1001?", "lookup_record", {"record_id": "ORD-1001"}),
+        (
+            "Please update ORD-1002 to shipped",
+            "update_record",
+            {"record_id": "ORD-1002", "status": "shipped"},
+        ),
+        ("How long do refunds take?", "search_knowledge", {"query": "How long do refunds take?"}),
+    ],
+)
+def test_mock_chooses_a_tool_from_the_message(message, expected_name, expected_arguments):
+    """Check the mock's simple keyword routing.
+
+    Why: The offline demo needs the mock to act like a model that calls tools.
+
+    Used by: pytest.
+
+    Args:
+        message: The user message.
+        expected_name: The tool the mock should call.
+        expected_arguments: The arguments it should pass.
+    """
+    messages = [ChatMessage(role="user", content=message)]
+
+    result = asyncio.run(MockProvider().generate(messages, tools=ALL_TOOLS))
+
+    assert [(c.name, c.arguments) for c in result.tool_calls] == [
+        (expected_name, expected_arguments)
+    ]
+
+
+def test_mock_only_calls_tools_it_was_offered():
+    """Check a message that matches a tool the caller did not offer.
+
+    Why: A real API would reject an unknown tool, and the mock should not hide such a mistake.
+
+    Used by: pytest.
+    """
+    messages = [ChatMessage(role="user", content="Status of ORD-1001?")]
+
+    assert asyncio.run(MockProvider().generate(messages)).tool_calls == ()
+
+
+def test_mock_answers_with_the_tool_result_after_a_tool_call():
+    """Check the step after a tool has run.
+
+    Why: Without this, the agent would call the same tool until it reached the step limit.
+
+    Used by: pytest.
+    """
+    messages = [
+        ChatMessage(role="user", content="Status of ORD-1001?"),
+        ChatMessage(role="tool", content="Status: shipped", tool_call_id="mock-1"),
+    ]
+
+    result = asyncio.run(MockProvider().generate(messages, tools=ALL_TOOLS))
+
+    assert result.tool_calls == ()
+    assert result.text == "[mock] Status: shipped"
+
+
 class FailingProvider:
     """Fake provider that fails a fixed number of times and then succeeds.
 
@@ -304,7 +552,7 @@ class FailingProvider:
         self.error = error
         self.calls = 0
 
-    async def generate(self, messages: list[ChatMessage]) -> GenerationResult:
+    async def generate(self, messages: list[ChatMessage], tools=None) -> GenerationResult:
         """Fail or succeed according to the call count.
 
         Why: This is the behaviour under test.
@@ -313,6 +561,7 @@ class FailingProvider:
 
         Args:
             messages: Ignored.
+            tools: Ignored.
 
         Returns:
             A fixed result once the failures are used up.

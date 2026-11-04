@@ -9,7 +9,37 @@ Used by: `ai_ops.llm.mock`, `ai_ops.llm.openai_compatible`, `ai_ops.llm.retry`,
 """
 
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
+
+
+@dataclass(frozen=True)
+class ToolSchema:
+    """Describes a tool that a model may ask to call.
+
+    Why: The model only sees this description. It never runs anything itself: it can only ask,
+    and our code decides what happens.
+
+    Used by: `ai_ops.agents.registry.ToolRegistry` builds these. Providers send them.
+    """
+
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    """A model's request to call a tool.
+
+    Why: Vendors send arguments in their own format. This gives the rest of the code one type.
+    Arguments come from the model, so treat them as untrusted input.
+
+    Used by: `GenerationResult`, `ChatMessage`, and `ai_ops.agents.loop.Agent`.
+    """
+
+    id: str
+    name: str
+    arguments: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -17,13 +47,16 @@ class ChatMessage:
     """One message in a conversation with a model.
 
     Why: Keeping the prompt split by role lets the system instructions stay separate from
-    user input, which is part of the prompt injection defence.
+    user input, which is part of the prompt injection defence. `tool_calls` and `tool_call_id`
+    let the model see which tool results answer which of its own requests.
 
     Used by: callers of `LLMProvider.generate`.
     """
 
-    role: Literal["system", "user", "assistant"]
+    role: Literal["system", "user", "assistant", "tool"]
     content: str
+    tool_calls: tuple[ToolCall, ...] = ()
+    tool_call_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +84,7 @@ class GenerationResult:
     text: str
     model: str
     usage: Usage
+    tool_calls: tuple[ToolCall, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -124,18 +158,21 @@ class LLMProvider(Protocol):
     Used by: `ai_ops.llm.factory.build_provider` returns one. `create_app` stores it.
     """
 
-    async def generate(self, messages: list[ChatMessage]) -> GenerationResult:
+    async def generate(
+        self, messages: list[ChatMessage], tools: list[ToolSchema] | None = None
+    ) -> GenerationResult:
         """Generate a reply to a conversation.
 
         Why: This is the core operation for answers, agents, and drafting.
 
-        Used by: services, from Milestone 3 onwards.
+        Used by: `ai_ops.services`, and `ai_ops.agents.loop.Agent` with tools.
 
         Args:
             messages: The conversation so far.
+            tools: Tools the model may ask to call.
 
         Returns:
-            The generated text and its token usage.
+            The generated text, any tool calls the model asked for, and the token usage.
 
         Raises:
             LLMError: The call failed.

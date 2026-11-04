@@ -7,6 +7,7 @@ short and shows what actually goes over the wire.
 Used by: `ai_ops.llm.factory.build_provider` when `AI_OPS_LLM_PROVIDER=openai_compatible`.
 """
 
+import json
 from typing import Any
 
 import httpx2
@@ -17,11 +18,65 @@ from ai_ops.llm.provider import (
     GenerationResult,
     LLMProviderError,
     LLMTimeoutError,
+    ToolCall,
+    ToolSchema,
     Usage,
 )
 
 # 408 and 429 mean "try later". Server errors are usually temporary.
 _RETRYABLE_STATUSES = {408, 429}
+
+
+def _message_to_wire(message: ChatMessage) -> dict[str, Any]:
+    """Convert a message to the vendor's JSON format.
+
+    Why: The extra keys are only added when used, because some compatible APIs reject them on
+    ordinary messages. Arguments go back as a JSON string, which is the format the API uses.
+
+    Used by: `OpenAICompatibleProvider.generate`.
+
+    Args:
+        message: The message.
+
+    Returns:
+        The JSON-ready message.
+    """
+    wire: dict[str, Any] = {"role": message.role, "content": message.content}
+    if message.tool_calls:
+        wire["tool_calls"] = [
+            {
+                "id": call.id,
+                "type": "function",
+                "function": {"name": call.name, "arguments": json.dumps(call.arguments)},
+            }
+            for call in message.tool_calls
+        ]
+    if message.tool_call_id:
+        wire["tool_call_id"] = message.tool_call_id
+    return wire
+
+
+def _tool_to_wire(tool: ToolSchema) -> dict[str, Any]:
+    """Convert a tool schema to the vendor's JSON format.
+
+    Why: Keeps the vendor's nesting out of the rest of the code.
+
+    Used by: `OpenAICompatibleProvider.generate`.
+
+    Args:
+        tool: The tool.
+
+    Returns:
+        The JSON-ready tool.
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": tool.parameters,
+        },
+    }
 
 
 class OpenAICompatibleProvider:
@@ -105,41 +160,54 @@ class OpenAICompatibleProvider:
         except ValueError:
             raise LLMProviderError(f"Invalid JSON from {path}") from None
 
-    async def generate(self, messages: list[ChatMessage]) -> GenerationResult:
+    async def generate(
+        self, messages: list[ChatMessage], tools: list[ToolSchema] | None = None
+    ) -> GenerationResult:
         """Call the chat completions endpoint.
 
         Why: This converts between the vendor format and our types, so the rest of the code
         never sees the vendor format.
 
-        Used by: services, through the `LLMProvider` interface.
+        Used by: services and the agent, through the `LLMProvider` interface.
 
         Args:
             messages: The conversation so far.
+            tools: Tools the model may ask to call.
 
         Returns:
-            The first choice's text and the token usage.
+            The first choice's text, any tool calls, and the token usage. The text is empty
+            when the model only asks for tool calls.
 
         Raises:
             LLMTimeoutError: The provider did not answer in time.
             LLMProviderError: The call failed or the response has an unexpected shape.
         """
-        data = await self._post(
-            "/chat/completions",
-            {
-                "model": self._chat_model,
-                "messages": [{"role": m.role, "content": m.content} for m in messages],
-            },
-        )
+        payload: dict[str, Any] = {
+            "model": self._chat_model,
+            "messages": [_message_to_wire(message) for message in messages],
+        }
+        if tools:
+            payload["tools"] = [_tool_to_wire(tool) for tool in tools]
+        data = await self._post("/chat/completions", payload)
         try:
+            message = data["choices"][0]["message"]
             return GenerationResult(
-                text=data["choices"][0]["message"]["content"],
+                text=message.get("content") or "",
                 model=data["model"],
                 usage=Usage(
                     input_tokens=data["usage"]["prompt_tokens"],
                     output_tokens=data["usage"]["completion_tokens"],
                 ),
+                tool_calls=tuple(
+                    ToolCall(
+                        id=call["id"],
+                        name=call["function"]["name"],
+                        arguments=json.loads(call["function"]["arguments"]),
+                    )
+                    for call in message.get("tool_calls") or []
+                ),
             )
-        except (KeyError, IndexError, TypeError):
+        except (KeyError, IndexError, TypeError, ValueError):
             raise LLMProviderError("Unexpected response from /chat/completions") from None
 
     async def embed(self, texts: list[str]) -> EmbeddingResult:

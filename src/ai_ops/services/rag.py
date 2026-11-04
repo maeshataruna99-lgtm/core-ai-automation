@@ -39,13 +39,13 @@ class RagAnswer:
     latency_ms: float
 
 
-def _format_context(results: Iterable[ScoredChunk]) -> str:
+def format_context(results: Iterable[ScoredChunk]) -> str:
     """Format retrieved chunks for the prompt.
 
     Why: Each chunk is labelled with its id, so the model can cite it. HTML escaping stops a
     document from closing the `<context>` tag and placing its text outside the data section.
 
-    Used by: `RagService.ask`.
+    Used by: `RagService.ask` and `ai_ops.services.workflow`.
 
     Args:
         results: The retrieved chunks.
@@ -136,6 +136,45 @@ class RagService:
             self._store.add(batch, result.vectors)
         self.document_count += len(documents)
 
+    def _search(self, vector: list[float]) -> list[ScoredChunk]:
+        """Search the store and drop results below the relevance threshold.
+
+        Why: Weak matches would give the model irrelevant text to work from.
+
+        Used by: `ask` and `retrieve`.
+
+        Args:
+            vector: The query embedding.
+
+        Returns:
+            The relevant chunks, highest score first.
+        """
+        return [
+            result
+            for result in self._store.search(vector, self._top_k)
+            if result.score >= self._min_score
+        ]
+
+    async def retrieve(self, query: str) -> list[ScoredChunk]:
+        """Find relevant chunks without generating an answer.
+
+        Why: The agent and the workflow use knowledge as one input among others, so they need the
+        text, not a finished answer.
+
+        Used by: the `search_knowledge` tool and the ticket workflow.
+
+        Args:
+            query: The search text.
+
+        Returns:
+            The relevant chunks, highest score first.
+
+        Raises:
+            LLMError: The embedding call failed.
+        """
+        embedded = await self._provider.embed([query])
+        return self._search(embedded.vectors[0])
+
     async def ask(self, question: str) -> RagAnswer:
         """Answer a question from the knowledge base.
 
@@ -157,11 +196,7 @@ class RagService:
         """
         started_at = time.perf_counter()
         embedded = await self._provider.embed([question])
-        results = [
-            result
-            for result in self._store.search(embedded.vectors[0], self._top_k)
-            if result.score >= self._min_score
-        ]
+        results = self._search(embedded.vectors[0])
 
         def elapsed_ms() -> float:
             """Return the time since the call started."""
@@ -182,7 +217,7 @@ class RagService:
                 ChatMessage(
                     role="user",
                     content=self._user_prompt.render(
-                        context=_format_context(results), question=question
+                        context=format_context(results), question=question
                     ),
                 ),
             ]

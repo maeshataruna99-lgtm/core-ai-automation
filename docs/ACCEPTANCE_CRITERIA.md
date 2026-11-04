@@ -10,7 +10,7 @@
 ## API behaviour
 - [x] Valid requests return documented responses.
 - [x] Invalid requests are rejected with 422 and a clear message.
-- [ ] Request size and agent step limits are enforced.
+- [x] Request size and agent step limits are enforced.
 - [x] Upstream LLM failures return 502; timeouts return 504.
 - [x] The API binds to 127.0.0.1 by default.
 
@@ -27,11 +27,11 @@
 - [ ] Prompt-injection text in a document does not alter system behaviour.
 
 ## Agent and workflow
-- [ ] The agent stops at the step limit.
-- [ ] Write tools run only after approval.
-- [ ] Rejected actions change no data.
-- [ ] Tool calls are logged.
-- [ ] Workflow retries do not duplicate side effects.
+- [x] The agent stops at the step limit.
+- [x] Write tools run only after approval.
+- [x] Rejected actions change no data.
+- [x] Tool calls are logged.
+- [x] Workflow retries do not duplicate side effects.
 
 ## Integrations
 - [ ] SQL access uses parameterised queries.

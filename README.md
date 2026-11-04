@@ -100,6 +100,26 @@ The response has the `answer`, whether anything relevant was `found`, the `sourc
 
 Documents are loaded from `AI_OPS_KNOWLEDGE_DIR` at startup and kept in memory. With a real provider, every restart pays to embed them again.
 
+Use the agent, which reads records and proposes changes through tools:
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat -H "Content-Type: application/json" -d "{\"message\": \"Please update ORD-1002 to shipped\"}"
+```
+
+Nothing changes yet. The response lists an id in `pending_approvals`, and only a person can run the action:
+
+```bash
+curl -X POST http://127.0.0.1:8000/approvals/APPROVAL_ID -H "Content-Type: application/json" -d "{\"decision\": \"approve\"}"
+```
+
+Run the ticket workflow, which classifies a ticket, looks up the order, drafts a reply, and waits for approval before sending:
+
+```bash
+curl -X POST http://127.0.0.1:8000/workflows/ticket -H "Content-Type: application/json" -d "{\"ticket_id\": \"T-1\", \"message\": \"Where is my delivery for ORD-1001?\"}"
+```
+
+Posting the same ticket again is safe: it continues after a failure, or else reports the current state. Sending goes through a stub, so no message leaves the application. Records, approvals, and workflow progress are kept in memory and are lost on restart. Approvals have no login, so do not expose this API to a network.
+
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `AI_OPS_LLM_PROVIDER` | Yes | | `mock` (offline, no key) or `openai_compatible` |
@@ -114,6 +134,8 @@ Documents are loaded from `AI_OPS_KNOWLEDGE_DIR` at startup and kept in memory. 
 | `AI_OPS_RAG_CHUNK_OVERLAP` | No | `100` | Characters repeated between chunks |
 | `AI_OPS_RAG_TOP_K` | No | `4` | Maximum chunks used per question |
 | `AI_OPS_RAG_MIN_SCORE` | No | `0.15` | Lowest similarity counted as relevant. Chosen for the mock provider, so check it when using a real embedding model |
+| `AI_OPS_AGENT_MAX_STEPS` | No | `5` | Maximum model calls for one chat message, from 1 to 20 |
+| `AI_OPS_AGENT_TIMEOUT_SECONDS` | No | `60` | Time limit for one chat message |
 | `AI_OPS_LOG_LEVEL` | No | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 | `AI_OPS_HOST` | No | `127.0.0.1` | Bind address |
 | `AI_OPS_PORT` | No | `8000` | Bind port |
@@ -129,7 +151,7 @@ The exact commands will be added as the features are built.
 
 ## Repository status
 
-Milestones 0 to 3: the project skeleton, tooling, CI, the API foundation (`GET /health`, settings, structured logging, request ids, and consistent errors), the LLM layer (provider interface, mock provider, OpenAI-compatible provider, retries, and prompt templates), and RAG (`POST /ask`, document loading, chunking, and an in-memory vector store) exist. The OpenAI-compatible provider has only been tested against a simulated API, so how a real model handles prompt injection is not verified. The agent and workflow features are not implemented yet.
+Milestones 0 to 4: the project skeleton, tooling, CI, the API foundation (`GET /health`, settings, structured logging, request ids, and consistent errors), the LLM layer (provider interface, mock provider, OpenAI-compatible provider, retries, and prompt templates), RAG (`POST /ask`, document loading, chunking, and an in-memory vector store), the agent (`POST /chat`, tool registry, and human approval through `POST /approvals/{id}`), and the ticket workflow (`POST /workflows/ticket`) exist. The OpenAI-compatible provider has only been tested against a simulated API, so how a real model chooses tools or handles prompt injection is not verified. SQL storage, a real third-party adapter, and evaluation are not implemented yet.
 
 ## Commit messages
 

@@ -94,11 +94,11 @@
 - Ticket workflow: classify, look up, draft, approve, send via stub.
 
 **Acceptance criteria**
-- [ ] Agent stops at the step limit with a clear message.
-- [ ] Write tools never run without approval.
-- [ ] Rejected approvals leave data unchanged.
-- [ ] Each tool call is logged with inputs and outcome.
-- [ ] Workflow steps can be retried without duplicate side effects.
+- [x] Agent stops at the step limit with a clear message.
+- [x] Write tools never run without approval.
+- [x] Rejected approvals leave data unchanged.
+- [x] Each tool call is logged with inputs and outcome.
+- [x] Workflow steps can be retried without duplicate side effects.
 
 ## Milestone 5 — Data and system integrations
 

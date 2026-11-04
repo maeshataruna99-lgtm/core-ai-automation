@@ -6,7 +6,7 @@ contract and the actual responses cannot drift apart.
 Used by: `ai_ops.api.routes` for requests and responses, `ai_ops.api.errors` for error bodies.
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -80,6 +80,108 @@ class AskResponse(BaseModel):
     sources: list[SourceResponse]
     usage: UsageResponse
     latency_ms: float
+
+
+class ChatRequest(BaseModel):
+    """Body of `POST /chat`.
+
+    Why: The limit matters more than for `/ask`, because the message is sent again on every step
+    of the agent's loop.
+
+    Used by: `ai_ops.api.routes.chat`.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    message: str = Field(min_length=1, max_length=2000)
+
+
+class ToolCallResponse(BaseModel):
+    """One tool request the agent made, and what happened to it.
+
+    Why: A person should be able to see what the agent actually did, and not only what its reply
+    claims it did.
+
+    Used by: `ChatResponse`.
+    """
+
+    name: str
+    arguments: dict[str, Any]
+    status: Literal["ok", "error", "pending_approval"]
+    approval_id: str | None
+
+
+class ChatResponse(BaseModel):
+    """Body of a successful `POST /chat`.
+
+    Why: `stop_reason` shows whether the agent finished, and `pending_approvals` lists actions that
+    are waiting for a person. Reaching a limit is a normal result, so it is still a 200.
+
+    Used by: `ai_ops.api.routes.chat`.
+    """
+
+    reply: str
+    stop_reason: Literal["completed", "max_steps", "timeout"]
+    tool_calls: list[ToolCallResponse]
+    pending_approvals: list[str]
+    usage: UsageResponse
+    latency_ms: float
+
+
+class TicketRequest(BaseModel):
+    """Body of `POST /workflows/ticket`.
+
+    Why: The id is an idempotency key and ends up in logs, so it is limited to safe characters.
+
+    Used by: `ai_ops.api.routes.run_ticket_workflow`.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    ticket_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    message: str = Field(min_length=1, max_length=4000)
+
+
+class TicketResponse(BaseModel):
+    """Body of a successful `POST /workflows/ticket`.
+
+    Why: Holds what a person needs to review the draft, and the id to approve or reject it.
+
+    Used by: `ai_ops.api.routes.run_ticket_workflow`.
+    """
+
+    ticket_id: str
+    status: Literal["pending_approval", "sending", "sent", "rejected", "send_failed"]
+    category: str
+    record_id: str | None
+    draft: str
+    approval_id: str
+
+
+class ApprovalDecisionRequest(BaseModel):
+    """Body of `POST /approvals/{id}`.
+
+    Why: Only these two exact words are accepted, so an unclear value can never count as approval.
+
+    Used by: `ai_ops.api.routes.decide_approval`.
+    """
+
+    decision: Literal["approve", "reject"]
+
+
+class ApprovalResponse(BaseModel):
+    """An approval and its current state.
+
+    Why: `kind` and `payload` show exactly what is being approved.
+
+    Used by: `ai_ops.api.routes.decide_approval`.
+    """
+
+    id: str
+    kind: str
+    payload: dict[str, Any]
+    status: Literal["pending", "executing", "executed", "rejected", "failed"]
+    result: dict[str, Any] | None
 
 
 class ErrorDetail(BaseModel):
