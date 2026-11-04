@@ -10,10 +10,10 @@
 - CI skeleton.
 
 **Acceptance criteria**
-- [ ] A clean checkout installs and runs tests on Windows.
-- [ ] A clean checkout installs and runs tests on Linux.
+- [x] A clean checkout installs and runs tests on Windows.
+- [x] A clean checkout installs and runs tests on Linux.
 - [ ] Setup instructions are reproducible.
-- [ ] CI reports lint and test status.
+- [x] CI reports lint and test status.
 
 ## Milestone 1 — Python API foundation
 

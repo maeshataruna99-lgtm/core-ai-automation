@@ -1,11 +1,11 @@
 # Acceptance Criteria and Verification Plan
 
 ## Build and portability
-- [ ] Project installs and tests pass on Windows.
-- [ ] Project installs and tests pass on Linux.
+- [x] Project installs and tests pass on Windows.
+- [x] Project installs and tests pass on Linux.
 - [ ] No OS-specific code in core logic.
 - [ ] Setup instructions match the tested commands.
-- [ ] CI runs lint and tests.
+- [x] CI runs lint and tests.
 
 ## API behaviour
 - [ ] Valid requests return documented responses.

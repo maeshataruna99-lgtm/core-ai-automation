@@ -1,3 +1,7 @@
+# Project metadata and tool settings, kept in one file.
+# Why: pip, pytest, and ruff all read this file, so there is no separate config per tool.
+# Used by: `pip install -e ".[dev]"`, `pytest`, `ruff`, and .github/workflows/ci.yml.
+
 [build-system]
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
@@ -13,6 +17,7 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6"]
 
+# Src layout: packages live in src/, so tests must import the installed package.
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -27,11 +32,14 @@ line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
 
+# E/W style, F likely bugs, I import order, UP modern syntax, B bug patterns, D docstrings.
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+# Ruff only checks that docstrings exist. Tests are exempt from that check, but the
+# code documentation rule in docs/PYTHON_LEARNING_PATH.md still applies to them.
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D"]

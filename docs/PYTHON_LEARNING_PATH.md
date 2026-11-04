@@ -71,3 +71,32 @@ Practice:
 ## Learning principle
 
 Every new concept should solve a concrete problem in the assistant. Avoid adding frameworks or features merely to make the project look impressive.
+
+## Code documentation rule
+
+The code is also study material, so every script and function must be understandable when reread later. Each one documents:
+
+- **Why:** the problem it solves and why it is built this way.
+- **Used by:** the callers, or what triggers it. Update this when callers change.
+- **What it does:** its purpose, plus inputs, outputs, errors, and side effects when they exist.
+
+Write for a middle developer: assume programming experience, explain Python idioms and AI concepts that are not obvious, and do not restate each line. This applies to source, tests, scripts, and CI workflows.
+
+```python
+def chunk_text(text: str, size: int, overlap: int) -> list[str]:
+    """Split text into overlapping chunks for embedding.
+
+    Why: Embedding models have an input limit. Overlap keeps a sentence that
+    crosses a boundary retrievable from at least one chunk.
+
+    Used by: `RagService.ingest` during document ingestion.
+
+    Args:
+        text: Document text.
+        size: Maximum characters per chunk.
+        overlap: Characters shared between neighbouring chunks.
+
+    Returns:
+        The chunks, in document order.
+    """
+```

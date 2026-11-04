@@ -1,3 +1,6 @@
+# Checks commit messages against commitlint.config.mjs.
+# Why: a local hook would need Node.js in a Python project, so the check runs in CI.
+# Used by: GitHub, on every push to main and every pull request.
 name: commitlint
 
 on:
@@ -15,5 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # Full history: the default shallow clone may not contain the commits to check.
           fetch-depth: 0
       - uses: wagoid/commitlint-github-action@v6

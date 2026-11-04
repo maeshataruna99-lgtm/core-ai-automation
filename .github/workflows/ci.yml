@@ -1,3 +1,7 @@
+# Runs lint, format check, and tests on Linux and Windows with Python 3.12.
+# Why: the project must work on both platforms (FR-09), and a clean runner catches
+# anything that only works on one developer's machine.
+# Used by: GitHub, on every push to main and every pull request.
 name: ci
 
 on:
@@ -11,6 +15,7 @@ permissions:
 jobs:
   test:
     strategy:
+      # Finish both platforms, so a failure shows whether it is OS-specific.
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
