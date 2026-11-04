@@ -30,7 +30,7 @@
 - Consistent error responses.
 
 **Acceptance criteria**
-- [ ] API starts and stops cleanly.
+- [x] API starts and stops cleanly.
 - [x] Invalid input returns 422 with a clear message.
 - [x] Logs contain timestamp, severity, request id.
 - [x] Missing configuration fails fast with a clear error.
