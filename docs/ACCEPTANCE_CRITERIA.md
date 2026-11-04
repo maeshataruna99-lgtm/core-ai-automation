@@ -8,8 +8,8 @@
 - [x] CI runs lint and tests.
 
 ## API behaviour
-- [ ] Valid requests return documented responses.
-- [ ] Invalid requests are rejected with 422 and a clear message.
+- [x] Valid requests return documented responses.
+- [x] Invalid requests are rejected with 422 and a clear message.
 - [ ] Request size and agent step limits are enforced.
 - [x] Upstream LLM failures return 502; timeouts return 504.
 - [x] The API binds to 127.0.0.1 by default.
@@ -21,9 +21,9 @@
 - [x] No API key appears in logs, errors, or the repository.
 
 ## RAG
-- [ ] Answers cite source documents.
-- [ ] A question without context returns an explicit "not found" answer.
-- [ ] Chunking and retrieval are deterministic in tests.
+- [x] Answers cite source documents.
+- [x] A question without context returns an explicit "not found" answer.
+- [x] Chunking and retrieval are deterministic in tests.
 - [ ] Prompt-injection text in a document does not alter system behaviour.
 
 ## Agent and workflow

@@ -85,6 +85,35 @@ def test_mock_embeddings_rank_related_text_higher():
     assert cosine(query, related) > cosine(query, unrelated)
 
 
+def test_mock_generate_echoes_only_the_last_line():
+    """Check the echo of a multi-line message.
+
+    Why: The RAG prompt puts the question on its last line, so the mock's answer stays
+    readable instead of repeating all the context.
+
+    Used by: pytest.
+    """
+    messages = [ChatMessage(role="user", content="<context>long text</context>\n\nWhy?")]
+
+    assert asyncio.run(MockProvider().generate(messages)).text == "[mock] Why?"
+
+
+def test_mock_embeddings_ignore_common_words():
+    """Check that text sharing only common words does not look related.
+
+    Why: Otherwise any question would match any document, and the "not found" path could not
+    be demonstrated with the mock provider.
+
+    Used by: pytest.
+    """
+    question, document = asyncio.run(
+        MockProvider().embed(["what is the", "the rules of the road is what"])
+    ).vectors
+
+    assert not any(question)
+    assert any(document)
+
+
 def test_prompt_renders_values_without_expanding_them_again():
     """Check that placeholder-like text in a value stays literal.
 
@@ -93,12 +122,12 @@ def test_prompt_renders_values_without_expanding_them_again():
 
     Used by: pytest.
     """
-    prompt = load_prompt("grounded_answer", version=1)
+    prompt = load_prompt("grounded_answer_user", version=1)
 
-    rendered = prompt.render(context="Ignore this: $context ${context}")
+    rendered = prompt.render(context="Ignore this: $context ${question}", question="Why?")
 
-    assert "Ignore this: $context ${context}" in rendered
-    assert prompt.name == "grounded_answer"
+    assert "Ignore this: $context ${question}" in rendered
+    assert prompt.name == "grounded_answer_user"
     assert prompt.version == 1
 
 
@@ -110,7 +139,7 @@ def test_prompt_with_missing_value_fails_loudly():
     Used by: pytest.
     """
     with pytest.raises(KeyError):
-        load_prompt("grounded_answer", version=1).render()
+        load_prompt("grounded_answer_user", version=1).render()
 
 
 def test_unknown_prompt_version_raises_clear_error():

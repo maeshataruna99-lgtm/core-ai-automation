@@ -10,6 +10,7 @@ receives them as an argument.
 
 import os
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, model_validator
@@ -44,6 +45,13 @@ class Settings(BaseModel):
         llm_timeout_seconds: Time limit for each network step of one attempt.
         llm_max_retries: Retries after the first attempt. Capped, because each retry adds a
             full timeout to the worst-case wait.
+        knowledge_dir: Directory of documents loaded at startup. A relative path starts from
+            the current working directory.
+        rag_chunk_size: Maximum characters per chunk. Large enough to hold a paragraph.
+        rag_chunk_overlap: Characters repeated between chunks.
+        rag_top_k: Maximum chunks used per question.
+        rag_min_score: Lowest similarity counted as relevant. It depends on the embedding
+            model, so check it when the model changes.
         log_level: Minimum severity written to the logs.
         host: Bind address. The default accepts local connections only.
         port: Bind port.
@@ -58,16 +66,22 @@ class Settings(BaseModel):
     llm_embedding_model: str | None = None
     llm_timeout_seconds: float = Field(default=30.0, gt=0)
     llm_max_retries: int = Field(default=2, ge=0, le=5)
+    knowledge_dir: Path = Path("data/knowledge")
+    rag_chunk_size: int = Field(default=800, gt=0)
+    rag_chunk_overlap: int = Field(default=100, ge=0)
+    rag_top_k: int = Field(default=4, gt=0)
+    rag_min_score: float = Field(default=0.15, ge=-1, le=1)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1, le=65535)
 
     @model_validator(mode="after")
     def _require_real_provider_settings(self) -> "Settings":
-        """Check that the real provider has everything it needs.
+        """Check the rules that involve more than one setting.
 
-        Why: These fields are optional for the mock, so a per-field rule cannot express this.
-        Checking here makes a missing value fail at startup, not on the first request.
+        Why: The real provider's fields are optional for the mock, and overlap depends on the
+        chunk size, so per-field rules cannot express these. Checking here makes a bad value
+        fail at startup, not on the first request.
 
         Used by: Pydantic, each time a `Settings` object is created.
 
@@ -75,7 +89,7 @@ class Settings(BaseModel):
             The settings, unchanged.
 
         Raises:
-            ValueError: One or more values are missing. The message names their variables.
+            ValueError: A rule is broken. The message names the variables involved.
         """
         if self.llm_provider == "openai_compatible":
             required = ("llm_base_url", "llm_api_key", "llm_chat_model", "llm_embedding_model")
@@ -84,6 +98,10 @@ class Settings(BaseModel):
             ]
             if missing:
                 raise ValueError(f"openai_compatible requires {', '.join(missing)}")
+        if self.rag_chunk_overlap >= self.rag_chunk_size:
+            raise ValueError(
+                f"{ENV_PREFIX}RAG_CHUNK_OVERLAP must be smaller than {ENV_PREFIX}RAG_CHUNK_SIZE"
+            )
         return self
 
     @classmethod

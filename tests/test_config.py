@@ -81,6 +81,20 @@ def test_real_provider_reports_every_missing_setting():
     assert "sk-test-secret-key" not in message
 
 
+def test_overlap_must_be_smaller_than_chunk_size():
+    """Check the settings that would hang the chunker.
+
+    Why: This should fail at startup with the variable named, not raise later inside
+    ingestion.
+
+    Used by: pytest.
+    """
+    env = {"AI_OPS_LLM_PROVIDER": "mock", "AI_OPS_RAG_CHUNK_OVERLAP": "900"}
+
+    with pytest.raises(ConfigError, match="AI_OPS_RAG_CHUNK_OVERLAP"):
+        Settings.from_env(env)
+
+
 def test_api_key_is_hidden_when_settings_are_printed():
     """Check that printing settings does not reveal the key.
 

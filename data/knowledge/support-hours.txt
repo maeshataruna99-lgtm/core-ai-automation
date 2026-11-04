@@ -1,0 +1,7 @@
+Customer support
+
+This document is synthetic sample data for the demo company, Northwind Parts.
+
+Support is open Monday to Friday from 08:00 to 17:00 Western Indonesian Time. Support is closed on national holidays.
+
+Urgent tickets about a missing delivery get a first reply within 4 business hours. All other tickets get a first reply within 1 business day.

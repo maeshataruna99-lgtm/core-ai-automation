@@ -88,7 +88,17 @@ Linux:
 AI_OPS_LLM_PROVIDER=mock python -m ai_ops
 ```
 
-Then open `http://127.0.0.1:8000/health` or the generated docs at `http://127.0.0.1:8000/docs`. Stop the API with Ctrl+C.
+Run it from the repository root, so that it finds the sample documents in `data/knowledge`. Then open `http://127.0.0.1:8000/health` or the generated docs at `http://127.0.0.1:8000/docs`. Stop the API with Ctrl+C.
+
+Ask a question:
+
+```bash
+curl -X POST http://127.0.0.1:8000/ask -H "Content-Type: application/json" -d "{\"question\": \"How long do card refunds take?\"}"
+```
+
+The response has the `answer`, whether anything relevant was `found`, the `sources` it used, token `usage`, and `latency_ms`. The mock provider does not answer questions: it echoes the question with a `[mock]` prefix, so it only demonstrates retrieval and the response format. Real answers need `openai_compatible`.
+
+Documents are loaded from `AI_OPS_KNOWLEDGE_DIR` at startup and kept in memory. With a real provider, every restart pays to embed them again.
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
@@ -99,6 +109,11 @@ Then open `http://127.0.0.1:8000/health` or the generated docs at `http://127.0.
 | `AI_OPS_LLM_EMBEDDING_MODEL` | With `openai_compatible` | | Model for embeddings |
 | `AI_OPS_LLM_TIMEOUT_SECONDS` | No | `30` | Time limit for each network step of one attempt |
 | `AI_OPS_LLM_MAX_RETRIES` | No | `2` | Retries for temporary failures, from 0 to 5 |
+| `AI_OPS_KNOWLEDGE_DIR` | No | `data/knowledge` | Directory of `.md` and `.txt` documents |
+| `AI_OPS_RAG_CHUNK_SIZE` | No | `800` | Maximum characters per chunk |
+| `AI_OPS_RAG_CHUNK_OVERLAP` | No | `100` | Characters repeated between chunks |
+| `AI_OPS_RAG_TOP_K` | No | `4` | Maximum chunks used per question |
+| `AI_OPS_RAG_MIN_SCORE` | No | `0.15` | Lowest similarity counted as relevant. Chosen for the mock provider, so check it when using a real embedding model |
 | `AI_OPS_LOG_LEVEL` | No | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 | `AI_OPS_HOST` | No | `127.0.0.1` | Bind address |
 | `AI_OPS_PORT` | No | `8000` | Bind port |
@@ -114,7 +129,7 @@ The exact commands will be added as the features are built.
 
 ## Repository status
 
-Milestones 0 to 2: the project skeleton, tooling, CI, the API foundation (`GET /health`, settings, structured logging, request ids, and consistent errors), and the LLM layer (provider interface, mock provider, OpenAI-compatible provider, retries, and prompt templates) exist. No endpoint calls the LLM layer yet, and the OpenAI-compatible provider has only been tested against a simulated API. The RAG, agent, and workflow features are not implemented yet.
+Milestones 0 to 3: the project skeleton, tooling, CI, the API foundation (`GET /health`, settings, structured logging, request ids, and consistent errors), the LLM layer (provider interface, mock provider, OpenAI-compatible provider, retries, and prompt templates), and RAG (`POST /ask`, document loading, chunking, and an in-memory vector store) exist. The OpenAI-compatible provider has only been tested against a simulated API, so how a real model handles prompt injection is not verified. The agent and workflow features are not implemented yet.
 
 ## Commit messages
 

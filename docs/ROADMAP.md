@@ -55,7 +55,7 @@
 - [x] Real provider errors map to 502, timeouts to 504.
 - [x] Retries are bounded and tested with a fake failing provider.
 - [x] API keys never appear in logs or error messages.
-- [ ] Provider can be swapped without changing service code.
+- [x] Provider can be swapped without changing service code.
 
 ## Milestone 3 — Retrieval-Augmented Generation
 
@@ -73,10 +73,10 @@
 - Optional second implementation (pgvector, Qdrant, or Chroma) after tests pass.
 
 **Acceptance criteria**
-- [ ] Answers include source ids.
-- [ ] A question with no relevant context returns a "not found" answer, not an invented one.
-- [ ] Retrieval is deterministic under the mock embedding provider.
-- [ ] Tests cover chunk boundaries, empty store, and ranking order.
+- [x] Answers include source ids.
+- [x] A question with no relevant context returns a "not found" answer, not an invented one.
+- [x] Retrieval is deterministic under the mock embedding provider.
+- [x] Tests cover chunk boundaries, empty store, and ranking order.
 - [ ] Prompt injection text inside a document does not change system behaviour (tested).
 
 ## Milestone 4 — Agent and workflow automation
