@@ -14,6 +14,7 @@ import sys
 import pytest
 
 from ai_ops.config import ConfigError, Settings
+from ai_ops.integrations.outbound import HttpOutboundAdapter, StubOutboundService, build_outbound
 from ai_ops.llm.factory import build_provider
 from ai_ops.llm.mock import MockProvider
 from ai_ops.llm.retry import RetryingProvider
@@ -93,6 +94,55 @@ def test_overlap_must_be_smaller_than_chunk_size():
 
     with pytest.raises(ConfigError, match="AI_OPS_RAG_CHUNK_OVERLAP"):
         Settings.from_env(env)
+
+
+def test_http_outbound_reports_missing_settings():
+    """Check the error when the real adapter is not fully configured.
+
+    Why: Finding this at startup is better than when a person approves a reply.
+
+    Used by: pytest.
+    """
+    env = {"AI_OPS_LLM_PROVIDER": "mock", "AI_OPS_OUTBOUND_PROVIDER": "http"}
+
+    with pytest.raises(ConfigError) as error:
+        Settings.from_env(env)
+
+    assert "AI_OPS_OUTBOUND_BASE_URL" in str(error.value)
+    assert "AI_OPS_OUTBOUND_API_KEY" in str(error.value)
+
+
+def test_outbound_service_is_selected_by_configuration_only():
+    """Check that configuration alone decides the outbound service.
+
+    Why: The demo must never contact a real service unless someone asks for that. So the stub is
+    the default.
+
+    Used by: pytest.
+    """
+
+    async def build_and_close(settings):
+        """Build the service and close its HTTP client in one event loop."""
+        service = build_outbound(settings)
+        await service.aclose()
+        return service
+
+    stub = asyncio.run(build_and_close(Settings(llm_provider="mock")))
+    http = asyncio.run(
+        build_and_close(
+            Settings.from_env(
+                {
+                    "AI_OPS_LLM_PROVIDER": "mock",
+                    "AI_OPS_OUTBOUND_PROVIDER": "http",
+                    "AI_OPS_OUTBOUND_BASE_URL": "https://messages.example.test",
+                    "AI_OPS_OUTBOUND_API_KEY": "outbound-test-secret",
+                }
+            )
+        )
+    )
+
+    assert isinstance(stub, StubOutboundService)
+    assert isinstance(http, HttpOutboundAdapter)
 
 
 def test_api_key_is_hidden_when_settings_are_printed():

@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from ai_ops.api.schemas import ErrorBody, ErrorDetail, ErrorResponse
+from ai_ops.integrations.records import RecordNotFoundError
 from ai_ops.llm.provider import LLMError, LLMTimeoutError
 from ai_ops.logging import LOGGER_NAME, request_id_var
 from ai_ops.services.approval import (
@@ -139,6 +140,7 @@ _SERVICE_ERRORS: dict[type[Exception], tuple[int, str]] = {
     ApprovalConflictError: (409, "approval_conflict"),
     ActionFailedError: (502, "action_failed"),
     WorkflowConflictError: (409, "ticket_conflict"),
+    RecordNotFoundError: (404, "record_not_found"),
 }
 
 

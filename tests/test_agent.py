@@ -9,13 +9,14 @@ Used by: `pytest`, locally and in `.github/workflows/ci.yml`.
 
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 
 from ai_ops.agents.loop import Agent
 from ai_ops.agents.registry import ToolRegistry
 from ai_ops.agents.tools import register_default_tools
-from ai_ops.integrations.records import InMemoryRecordRepository, Record
+from ai_ops.integrations.records import Record, SqliteRecordRepository
 from ai_ops.llm.mock import MockProvider
 from ai_ops.llm.provider import GenerationResult, ToolCall, Usage
 from ai_ops.logging import configure_logging
@@ -125,7 +126,8 @@ class Setup:
             max_steps: The agent's step limit.
             timeout_seconds: The agent's time limit.
         """
-        self.records = InMemoryRecordRepository(
+        self.records = SqliteRecordRepository(Path("records.db"))
+        self.records.initialise(
             [Record(id="ORD-1", customer="Test Customer", item="Bolts", status="processing")]
         )
         self.approvals = ApprovalService()

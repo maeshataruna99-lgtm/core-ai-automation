@@ -34,10 +34,10 @@
 - [x] Workflow retries do not duplicate side effects.
 
 ## Integrations
-- [ ] SQL access uses parameterised queries.
-- [ ] Repositories are tested against a temporary database.
+- [x] SQL access uses parameterised queries.
+- [x] Repositories are tested against a temporary database.
 - [ ] Cache failure does not break the application.
-- [ ] Adapter errors are surfaced.
+- [x] Adapter errors are surfaced.
 
 ## Evaluation
 - [ ] A golden set exists with expected sources and facts.

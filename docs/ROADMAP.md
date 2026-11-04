@@ -115,10 +115,10 @@
 - `GET /records/{id}`.
 
 **Acceptance criteria**
-- [ ] Repositories are tested against a temporary database.
-- [ ] SQL uses parameters; no string-built queries.
+- [x] Repositories are tested against a temporary database.
+- [x] SQL uses parameters; no string-built queries.
 - [ ] The application still works when the cache is unavailable.
-- [ ] Adapter failures are surfaced, not hidden.
+- [x] Adapter failures are surfaced, not hidden.
 
 ## Milestone 6 — Evaluation, testing, and optimisation
 

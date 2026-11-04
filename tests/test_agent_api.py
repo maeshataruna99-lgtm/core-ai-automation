@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from ai_ops.api.app import create_app
 from ai_ops.config import Settings
+from ai_ops.integrations.outbound import OutboundError, StubOutboundService
 
 SETTINGS = Settings(
     llm_provider="mock", knowledge_dir=Path(__file__).parent / "fixtures" / "knowledge"
@@ -264,6 +265,153 @@ def test_ticket_input_limits(client, ticket):
         ticket: The invalid request body.
     """
     assert client.post("/workflows/ticket", json=ticket).status_code == 422
+
+
+def test_get_record_returns_a_seeded_order(client):
+    """Check the read endpoint.
+
+    Why: The operator needs to see a record without going through the agent.
+
+    Used by: pytest.
+    """
+    response = client.get("/records/ORD-1001")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "id": "ORD-1001",
+        "customer": "Sample Customer A",
+        "item": "Bolts",
+        "status": "shipped",
+    }
+
+
+def test_get_missing_record_returns_404(client):
+    """Check an order that does not exist.
+
+    Why: Clients must get the shared error format.
+
+    Used by: pytest.
+    """
+    response = client.get("/records/ORD-404")
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "record_not_found"
+
+
+@pytest.mark.parametrize("record_id", ["not-an-order", "ORD-1'OR'1'='1", "ORD-"])
+def test_get_record_rejects_malformed_ids(client, record_id):
+    """Check ids that could not be an order.
+
+    Why: Bad input stops at the API boundary, before it reaches SQL.
+
+    Used by: pytest.
+
+    Args:
+        client: The test client.
+        record_id: The malformed id.
+    """
+    assert client.get(f"/records/{record_id}").status_code == 422
+
+
+def test_approved_change_survives_an_application_restart():
+    """Check persistence through the whole application.
+
+    Why: This is the difference SQL makes for the user: a second app on the same database file sees
+    the change, and the seed data at startup does not undo it.
+
+    Used by: pytest.
+    """
+    with TestClient(create_app(SETTINGS)) as first:
+        approval_id = chat(first, "Please update ORD-1002 to shipped")["pending_approvals"][0]
+        first.post(f"/approvals/{approval_id}", json={"decision": "approve"})
+
+    with TestClient(create_app(SETTINGS)) as second:
+        assert second.get("/records/ORD-1002").json()["status"] == "shipped"
+
+
+def test_outbound_failure_is_surfaced_and_can_be_retried():
+    """Check an approved reply when the messaging service is down.
+
+    Why: The person who approved it must see that it did not go out and why, and the ticket must
+    show the failure. Approving again retries it.
+
+    Used by: pytest.
+    """
+
+    class DownOnce(StubOutboundService):
+        """Outbound service that is down for the first attempt."""
+
+        def __init__(self) -> None:
+            """Start in the failing state."""
+            super().__init__()
+            self.down = True
+
+        async def send(self, idempotency_key: str, body: str) -> dict:
+            """Fail once, then behave like the stub."""
+            if self.down:
+                self.down = False
+                raise OutboundError("HTTP 503 from the outbound service")
+            return await super().send(idempotency_key, body)
+
+    outbound = DownOnce()
+    ticket = {"ticket_id": "T-5", "message": "Where is my delivery for ORD-1001?"}
+
+    with TestClient(create_app(SETTINGS, outbound=outbound)) as client:
+        approval_id = client.post("/workflows/ticket", json=ticket).json()["approval_id"]
+
+        failed = client.post(f"/approvals/{approval_id}", json={"decision": "approve"})
+
+        assert failed.status_code == 502
+        assert failed.json()["error"]["code"] == "action_failed"
+        assert "HTTP 503" in failed.json()["error"]["message"]
+        assert client.post("/workflows/ticket", json=ticket).json()["status"] == "send_failed"
+
+        retried = client.post(f"/approvals/{approval_id}", json={"decision": "approve"})
+
+        assert retried.status_code == 200
+        assert client.post("/workflows/ticket", json=ticket).json()["status"] == "sent"
+    assert outbound.send_count == 1
+
+
+def test_outbound_service_is_closed_when_the_app_stops():
+    """Check the shutdown step.
+
+    Why: The HTTP adapter holds open connections that must be released.
+
+    Used by: pytest.
+    """
+
+    class Closable(StubOutboundService):
+        """Stub that records being closed."""
+
+        closed = False
+
+        async def aclose(self) -> None:
+            """Record the call."""
+            self.closed = True
+
+    outbound = Closable()
+
+    with TestClient(create_app(SETTINGS, outbound=outbound)):
+        assert outbound.closed is False
+
+    assert outbound.closed is True
+
+
+def test_action_on_a_missing_record_says_why_it_failed(client):
+    """Check that a known failure reaches the caller.
+
+    Why: Hiding this reason would leave a person retrying an action that can never work. Only
+    errors written to be safe are shown. Other exceptions stay hidden.
+
+    Used by: pytest.
+    """
+    approval_id = chat(client, "Please update ORD-9999 to shipped")["pending_approvals"][0]
+
+    response = client.post(f"/approvals/{approval_id}", json={"decision": "approve"})
+
+    assert response.status_code == 502
+    assert "ORD-9999" in response.json()["error"]["message"]
 
 
 def test_tool_calls_in_logs_contain_inputs_and_outcome(capsys):

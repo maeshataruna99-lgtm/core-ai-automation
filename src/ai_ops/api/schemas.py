@@ -184,6 +184,20 @@ class ApprovalResponse(BaseModel):
     result: dict[str, Any] | None
 
 
+class RecordResponse(BaseModel):
+    """Body of `GET /records/{id}`.
+
+    Why: A separate model decides exactly what leaves the API, independent of the storage.
+
+    Used by: `ai_ops.api.routes.get_record`.
+    """
+
+    id: str
+    customer: str
+    item: str
+    status: Literal["processing", "shipped", "delivered", "cancelled"]
+
+
 class ErrorDetail(BaseModel):
     """One invalid field in a validation error.
 

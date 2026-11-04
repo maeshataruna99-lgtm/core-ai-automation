@@ -18,8 +18,8 @@ from ai_ops.api.errors import register_error_handlers
 from ai_ops.api.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
 from ai_ops.api.routes import router
 from ai_ops.config import Settings
-from ai_ops.integrations.outbound import StubOutboundService
-from ai_ops.integrations.records import InMemoryRecordRepository, sample_records
+from ai_ops.integrations.outbound import OutboundService, build_outbound
+from ai_ops.integrations.records import SqliteRecordRepository, sample_records
 from ai_ops.llm.factory import build_provider
 from ai_ops.llm.provider import LLMProvider
 from ai_ops.logging import configure_logging
@@ -35,11 +35,11 @@ MAX_BODY_BYTES = 64 * 1024
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Load the knowledge base at startup and close the LLM provider at shutdown.
+    """Prepare the database and knowledge base at startup, and close clients at shutdown.
 
     Why: FastAPI runs the code before `yield` once before serving, and the code after it at
-    shutdown. Ingesting here means the first question does not have to wait for it, and a
-    failing provider stops the startup with a visible error.
+    shutdown. Doing this work here means the first request does not have to wait for it, and a
+    failure stops the startup with a visible error.
 
     Used by: FastAPI, through the `lifespan` argument in `create_app`.
 
@@ -50,15 +50,22 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         Control back to FastAPI while the app serves requests.
 
     Raises:
+        sqlite3.Error: A migration failed. The app does not start.
         LLMError: Embedding the documents failed. The app does not start.
     """
+    app.state.records.initialise(sample_records())
     documents = load_documents(app.state.knowledge_dir)
     await app.state.rag_service.ingest(documents)
     yield
+    await app.state.outbound.aclose()
     await app.state.llm_provider.aclose()
 
 
-def create_app(settings: Settings, llm_provider: LLMProvider | None = None) -> FastAPI:
+def create_app(
+    settings: Settings,
+    llm_provider: LLMProvider | None = None,
+    outbound: OutboundService | None = None,
+) -> FastAPI:
     """Build the FastAPI app.
 
     Why: This is the one place where the API is assembled, so the full setup can be read
@@ -70,6 +77,7 @@ def create_app(settings: Settings, llm_provider: LLMProvider | None = None) -> F
     Args:
         settings: Validated application settings.
         llm_provider: Replaces the configured provider. Tests pass a failing fake.
+        outbound: Replaces the configured outbound service. Tests pass a failing fake.
 
     Returns:
         The configured app. It is not running yet.
@@ -89,11 +97,11 @@ def create_app(settings: Settings, llm_provider: LLMProvider | None = None) -> F
         top_k=settings.rag_top_k,
         min_score=settings.rag_min_score,
     )
-    records = InMemoryRecordRepository(sample_records())
-    app.state.outbound = StubOutboundService()
+    app.state.records = SqliteRecordRepository(settings.database_path)
+    app.state.outbound = outbound or build_outbound(settings)
     app.state.approvals = ApprovalService()
     registry = ToolRegistry(app.state.approvals)
-    register_default_tools(registry, app.state.rag_service, records)
+    register_default_tools(registry, app.state.rag_service, app.state.records)
     app.state.agent = Agent(
         provider=app.state.llm_provider,
         registry=registry,
@@ -103,7 +111,7 @@ def create_app(settings: Settings, llm_provider: LLMProvider | None = None) -> F
     app.state.ticket_workflow = TicketWorkflow(
         provider=app.state.llm_provider,
         rag=app.state.rag_service,
-        records=records,
+        records=app.state.records,
         approvals=app.state.approvals,
         outbound=app.state.outbound,
     )

@@ -118,7 +118,15 @@ Run the ticket workflow, which classifies a ticket, looks up the order, drafts a
 curl -X POST http://127.0.0.1:8000/workflows/ticket -H "Content-Type: application/json" -d "{\"ticket_id\": \"T-1\", \"message\": \"Where is my delivery for ORD-1001?\"}"
 ```
 
-Posting the same ticket again is safe: it continues after a failure, or else reports the current state. Sending goes through a stub, so no message leaves the application. Records, approvals, and workflow progress are kept in memory and are lost on restart. Approvals have no login, so do not expose this API to a network.
+Read an order directly:
+
+```bash
+curl http://127.0.0.1:8000/records/ORD-1002
+```
+
+Posting the same ticket again is safe: it continues after a failure, or else reports the current state. By default, sending goes through a stub, so no message leaves the application. Set `AI_OPS_OUTBOUND_PROVIDER=http` to use the HTTP adapter.
+
+Orders are stored in the SQLite file at `AI_OPS_DATABASE_PATH`, which is created on first start and survives restarts. Delete the file to return to the sample data. Approvals and workflow progress are still kept in memory, so they are lost on restart. There is no login, so do not expose this API to a network.
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
@@ -136,6 +144,11 @@ Posting the same ticket again is safe: it continues after a failure, or else rep
 | `AI_OPS_RAG_MIN_SCORE` | No | `0.15` | Lowest similarity counted as relevant. Chosen for the mock provider, so check it when using a real embedding model |
 | `AI_OPS_AGENT_MAX_STEPS` | No | `5` | Maximum model calls for one chat message, from 1 to 20 |
 | `AI_OPS_AGENT_TIMEOUT_SECONDS` | No | `60` | Time limit for one chat message |
+| `AI_OPS_DATABASE_PATH` | No | `data/ai_ops.db` | SQLite file for orders |
+| `AI_OPS_OUTBOUND_PROVIDER` | No | `stub` | `stub` (sends nothing) or `http` |
+| `AI_OPS_OUTBOUND_BASE_URL` | With `http` | | API root of the messaging service |
+| `AI_OPS_OUTBOUND_API_KEY` | With `http` | | Messaging service key. Set it only in the environment, never in a file in this repository |
+| `AI_OPS_OUTBOUND_TIMEOUT_SECONDS` | No | `10` | Time limit for each network step of a send |
 | `AI_OPS_LOG_LEVEL` | No | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 | `AI_OPS_HOST` | No | `127.0.0.1` | Bind address |
 | `AI_OPS_PORT` | No | `8000` | Bind port |
@@ -151,7 +164,7 @@ The exact commands will be added as the features are built.
 
 ## Repository status
 
-Milestones 0 to 4: the project skeleton, tooling, CI, the API foundation (`GET /health`, settings, structured logging, request ids, and consistent errors), the LLM layer (provider interface, mock provider, OpenAI-compatible provider, retries, and prompt templates), RAG (`POST /ask`, document loading, chunking, and an in-memory vector store), the agent (`POST /chat`, tool registry, and human approval through `POST /approvals/{id}`), and the ticket workflow (`POST /workflows/ticket`) exist. The OpenAI-compatible provider has only been tested against a simulated API, so how a real model chooses tools or handles prompt injection is not verified. SQL storage, a real third-party adapter, and evaluation are not implemented yet.
+Milestones 0 to 5: the project skeleton, tooling, CI, the API foundation (`GET /health`, settings, structured logging, request ids, and consistent errors), the LLM layer (provider interface, mock provider, OpenAI-compatible provider, retries, and prompt templates), RAG (`POST /ask`, document loading, chunking, and an in-memory vector store), the agent (`POST /chat`, tool registry, and human approval through `POST /approvals/{id}`), the ticket workflow (`POST /workflows/ticket`), and the integrations (SQLite with migrations, `GET /records/{id}`, and an HTTP outbound adapter) exist. The OpenAI-compatible provider and the HTTP adapter have only been tested against simulated services, so how a real model chooses tools or handles prompt injection is not verified. The optional cache and the evaluation suite are not implemented yet.
 
 ## Commit messages
 

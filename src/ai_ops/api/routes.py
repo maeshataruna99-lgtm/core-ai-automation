@@ -9,6 +9,7 @@ Used by: `ai_ops.api.app.create_app`, which includes this router.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
+from fastapi import Path as FastAPIPath
 
 from ai_ops.agents.loop import Agent
 from ai_ops.api.schemas import (
@@ -20,12 +21,14 @@ from ai_ops.api.schemas import (
     ChatResponse,
     ErrorResponse,
     HealthResponse,
+    RecordResponse,
     SourceResponse,
     TicketRequest,
     TicketResponse,
     ToolCallResponse,
     UsageResponse,
 )
+from ai_ops.integrations.records import RecordNotFoundError, RecordRepository
 from ai_ops.services.approval import ApprovalService
 from ai_ops.services.rag import RagService
 from ai_ops.services.workflow import TicketWorkflow
@@ -98,7 +101,24 @@ def get_approvals(request: Request) -> ApprovalService:
     return request.app.state.approvals
 
 
+def get_records(request: Request) -> RecordRepository:
+    """Return the app's record repository.
+
+    Why: See `get_rag_service`.
+
+    Used by: FastAPI, for `get_record`.
+
+    Args:
+        request: The current request.
+
+    Returns:
+        The repository created by `create_app`.
+    """
+    return request.app.state.records
+
+
 RagDependency = Annotated[RagService, Depends(get_rag_service)]
+RecordsDependency = Annotated[RecordRepository, Depends(get_records)]
 AgentDependency = Annotated[Agent, Depends(get_agent)]
 WorkflowDependency = Annotated[TicketWorkflow, Depends(get_ticket_workflow)]
 ApprovalsDependency = Annotated[ApprovalService, Depends(get_approvals)]
@@ -254,6 +274,38 @@ async def run_ticket_workflow(body: TicketRequest, workflow: WorkflowDependency)
         record_id=state.record_id,
         draft=state.draft,
         approval_id=state.approval_id,
+    )
+
+
+@router.get(
+    "/records/{record_id}",
+    responses={404: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+)
+async def get_record(
+    record_id: Annotated[str, FastAPIPath(pattern=r"^ORD-\d+$")], records: RecordsDependency
+) -> RecordResponse:
+    """Read one order.
+
+    Why: Staff can check a record directly, for example after approving a change. This reads
+    customer data with no login, which is another reason the API stays bound to localhost.
+
+    Used by: API clients over `GET /records/{record_id}`.
+
+    Args:
+        record_id: The order id, such as `ORD-1001`.
+        records: The repository.
+
+    Returns:
+        The order.
+
+    Raises:
+        RecordNotFoundError: The order does not exist. Mapped to a 404.
+    """
+    record = records.get(record_id)
+    if record is None:
+        raise RecordNotFoundError(f"Record {record_id} does not exist")
+    return RecordResponse(
+        id=record.id, customer=record.customer, item=record.item, status=record.status
     )
 
 

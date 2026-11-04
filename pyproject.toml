@@ -22,9 +22,10 @@ dev = ["pytest>=8", "ruff>=0.6"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
-# Prompt files are not Python code, so they must be listed to be included in a build.
+# Prompts and migrations are not Python code, so they must be listed to be included in a build.
 [tool.setuptools.package-data]
 "ai_ops.llm" = ["prompts/*.txt"]
+"ai_ops.integrations" = ["migrations/*.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

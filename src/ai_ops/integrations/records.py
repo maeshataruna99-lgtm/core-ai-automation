@@ -1,23 +1,33 @@
-"""Business records (orders) and the interface used to read and change them.
+"""Business records (orders) and the SQL repository that stores them.
 
-Why: The agent and the workflow need records now, and Milestone 5 adds SQL. The `Protocol` means
-the SQL version can replace the in-memory one without changing those callers.
+Why: The repository pattern keeps SQL in one file. Tools, services, and routes only see `Record`
+objects, so the storage could change without changing any of them.
 
-Used by: `ai_ops.agents.tools`, `ai_ops.services.workflow`, and `ai_ops.api.app`.
+Every query passes its values as `?` parameters, never by building the SQL string. The database then
+treats a value as data only, which is what prevents SQL injection.
+
+Used by: `ai_ops.agents.tools`, `ai_ops.services.workflow`, `ai_ops.api.routes`, and
+`ai_ops.api.app`.
 """
 
-from dataclasses import dataclass, replace
+from collections.abc import Iterable
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal, Protocol
+
+from ai_ops.integrations.database import apply_migrations, connect
+from ai_ops.integrations.errors import IntegrationError
 
 RecordStatus = Literal["processing", "shipped", "delivered", "cancelled"]
 
 
-class RecordNotFoundError(Exception):
+class RecordNotFoundError(IntegrationError):
     """The requested record does not exist.
 
-    Why: Callers can tell this apart from other failures.
+    Why: Callers can tell this apart from other failures. Its message only names the id.
 
-    Used by: raised by `update_status`. An approval that hits it ends as `failed`.
+    Used by: raised by `update_status` and `ai_ops.api.routes.get_record`, mapped to a 404 in
+    `ai_ops.api.errors`. An approval that hits it ends as `failed`.
     """
 
 
@@ -40,9 +50,9 @@ class Record:
 class RecordRepository(Protocol):
     """What the application needs from any record storage.
 
-    Why: The repository pattern keeps data access out of tools and services.
+    Why: Callers depend on this, not on SQLite.
 
-    Used by: `ai_ops.agents.tools` and `ai_ops.services.workflow`.
+    Used by: `ai_ops.agents.tools`, `ai_ops.services.workflow`, and `ai_ops.api.routes`.
     """
 
     def get(self, record_id: str) -> Record | None:
@@ -50,7 +60,7 @@ class RecordRepository(Protocol):
 
         Why: Missing records are a normal result when looking something up.
 
-        Used by: the `lookup_record` tool and the ticket workflow.
+        Used by: the `lookup_record` tool, the ticket workflow, and `GET /records/{id}`.
 
         Args:
             record_id: The record id.
@@ -80,47 +90,80 @@ class RecordRepository(Protocol):
         ...
 
 
-class InMemoryRecordRepository:
-    """Implementation of `RecordRepository` backed by a dict.
+class SqliteRecordRepository:
+    """Implementation of `RecordRepository` on a SQLite file.
 
-    Why: Enough to build and test the agent before the SQL work in Milestone 5.
+    Why: Each call opens its own connection, so this object holds no open resource and needs no
+    closing.
 
-    shortcut: data is lost on restart, Milestone 5 replaces this with SQLite.
+    shortcut: calls block the event loop while they run, which is fine for small local queries, move
+    them to a thread or an async driver if queries become slow.
 
     Used by: `ai_ops.api.app.create_app` and tests.
     """
 
-    def __init__(self, records: list[Record]) -> None:
-        """Store the starting records.
+    def __init__(self, path: Path) -> None:
+        """Store the database path. This does not touch the file.
 
-        Why: Tests and the demo each supply their own data.
+        Why: The app is assembled before it starts. Doing file work in `initialise` keeps building
+        the app free of side effects.
 
         Used by: `ai_ops.api.app.create_app` and tests.
 
         Args:
-            records: The starting records.
+            path: The database file.
         """
-        self._records = {record.id: record for record in records}
+        self._path = path
+
+    def initialise(self, seed: Iterable[Record]) -> None:
+        """Bring the schema up to date and add any missing seed records.
+
+        Why: This runs at every startup, so it must be safe to repeat. `INSERT OR IGNORE` skips a
+        record that already exists, so a restart does not undo a real change.
+
+        Used by: the lifespan function in `ai_ops.api.app`, and tests.
+
+        Args:
+            seed: The records to add when missing.
+
+        Raises:
+            sqlite3.Error: A migration or an insert failed.
+
+        Side effects:
+            Creates and changes the database file.
+        """
+        apply_migrations(self._path)
+        with connect(self._path) as connection:
+            connection.executemany(
+                "INSERT OR IGNORE INTO records (id, customer, item, status) VALUES (?, ?, ?, ?)",
+                [(record.id, record.customer, record.item, record.status) for record in seed],
+            )
+            connection.commit()
 
     def get(self, record_id: str) -> Record | None:
         """Read one record.
 
         Why: See `RecordRepository.get`.
 
-        Used by: the `lookup_record` tool and the ticket workflow.
+        Used by: the `lookup_record` tool, the ticket workflow, and `GET /records/{id}`.
 
         Args:
-            record_id: The record id.
+            record_id: The record id. It is passed as a parameter, so any text is safe here.
 
         Returns:
             The record, or None if it does not exist.
         """
-        return self._records.get(record_id)
+        with connect(self._path) as connection:
+            row = connection.execute(
+                "SELECT id, customer, item, status FROM records WHERE id = ?", (record_id,)
+            ).fetchone()
+        return Record(*row) if row else None
 
     def update_status(self, record_id: str, status: RecordStatus) -> Record:
         """Change a record's status.
 
-        Why: See `RecordRepository.update_status`.
+        Why: SQL reports success when an `UPDATE` matches no row, so `rowcount` must be checked.
+        Otherwise an approved action could look successful while changing nothing.
 
         Used by: the handler of the `update_record` tool.
 
@@ -133,12 +176,22 @@ class InMemoryRecordRepository:
 
         Raises:
             RecordNotFoundError: The record does not exist.
+            sqlite3.IntegrityError: The status breaks the schema's constraint.
+
+        Side effects:
+            Changes one row.
         """
-        record = self._records.get(record_id)
-        if record is None:
-            raise RecordNotFoundError(record_id)
-        self._records[record_id] = replace(record, status=status)
-        return self._records[record_id]
+        with connect(self._path) as connection:
+            cursor = connection.execute(
+                "UPDATE records SET status = ? WHERE id = ?", (status, record_id)
+            )
+            if cursor.rowcount == 0:
+                raise RecordNotFoundError(f"Record {record_id} does not exist")
+            connection.commit()
+            row = connection.execute(
+                "SELECT id, customer, item, status FROM records WHERE id = ?", (record_id,)
+            ).fetchone()
+        return Record(*row)
 
 
 def sample_records() -> list[Record]:
@@ -146,7 +199,7 @@ def sample_records() -> list[Record]:
 
     Why: The project must not use real customer data, so these are invented.
 
-    Used by: `ai_ops.api.app.create_app`.
+    Used by: `ai_ops.api.app`, which seeds them at startup.
 
     Returns:
         The sample orders.

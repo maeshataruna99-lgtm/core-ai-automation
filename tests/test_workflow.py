@@ -8,11 +8,12 @@ Used by: `pytest`, locally and in `.github/workflows/ci.yml`.
 
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 
 from ai_ops.integrations.outbound import StubOutboundService
-from ai_ops.integrations.records import InMemoryRecordRepository, Record
+from ai_ops.integrations.records import Record, SqliteRecordRepository
 from ai_ops.llm.mock import MockProvider
 from ai_ops.llm.provider import GenerationResult, LLMProviderError, Usage
 from ai_ops.logging import configure_logging
@@ -152,12 +153,14 @@ class Setup:
             min_score=0.15,
         )
         asyncio.run(rag.ingest([Document("shipping.md", "A delivery takes five days.")]))
+        records = SqliteRecordRepository(Path("records.db"))
+        records.initialise(
+            [Record(id="ORD-1", customer="Test Customer", item="Bolts", status="shipped")]
+        )
         self.workflow = TicketWorkflow(
             provider=self.provider,
             rag=rag,
-            records=InMemoryRecordRepository(
-                [Record(id="ORD-1", customer="Test Customer", item="Bolts", status="shipped")]
-            ),
+            records=records,
             approvals=self.approvals,
             outbound=self.outbound,
         )

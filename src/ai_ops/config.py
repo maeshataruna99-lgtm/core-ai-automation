@@ -55,6 +55,11 @@ class Settings(BaseModel):
         agent_max_steps: Maximum model calls for one chat message. Capped, because each step
             costs tokens.
         agent_timeout_seconds: Time limit for one chat message.
+        database_path: SQLite file. A relative path starts from the current working directory.
+        outbound_provider: Messaging service. The default sends nothing.
+        outbound_base_url: API root of the real messaging service.
+        outbound_api_key: Key for the real messaging service.
+        outbound_timeout_seconds: Time limit for each network step of a send.
         log_level: Minimum severity written to the logs.
         host: Bind address. The default accepts local connections only.
         port: Bind port.
@@ -76,6 +81,11 @@ class Settings(BaseModel):
     rag_min_score: float = Field(default=0.15, ge=-1, le=1)
     agent_max_steps: int = Field(default=5, ge=1, le=20)
     agent_timeout_seconds: float = Field(default=60.0, gt=0)
+    database_path: Path = Path("data/ai_ops.db")
+    outbound_provider: Literal["stub", "http"] = "stub"
+    outbound_base_url: str | None = None
+    outbound_api_key: SecretStr | None = None
+    outbound_timeout_seconds: float = Field(default=10.0, gt=0)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1, le=65535)
@@ -84,7 +94,7 @@ class Settings(BaseModel):
     def _require_real_provider_settings(self) -> "Settings":
         """Check the rules that involve more than one setting.
 
-        Why: The real provider's fields are optional for the mock, and overlap depends on the
+        Why: Real services need fields that the mock and the stub do not, and overlap depends on the
         chunk size, so per-field rules cannot express these. Checking here makes a bad value
         fail at startup, not on the first request.
 
@@ -103,6 +113,13 @@ class Settings(BaseModel):
             ]
             if missing:
                 raise ValueError(f"openai_compatible requires {', '.join(missing)}")
+        if self.outbound_provider == "http":
+            required = ("outbound_base_url", "outbound_api_key")
+            missing = [
+                f"{ENV_PREFIX}{name.upper()}" for name in required if not getattr(self, name)
+            ]
+            if missing:
+                raise ValueError(f"The http outbound provider requires {', '.join(missing)}")
         if self.rag_chunk_overlap >= self.rag_chunk_size:
             raise ValueError(
                 f"{ENV_PREFIX}RAG_CHUNK_OVERLAP must be smaller than {ENV_PREFIX}RAG_CHUNK_SIZE"

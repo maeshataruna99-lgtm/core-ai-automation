@@ -19,6 +19,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from ai_ops.integrations.errors import IntegrationError
 from ai_ops.logging import LOGGER_NAME
 
 logger = logging.getLogger(f"{LOGGER_NAME}.approval")
@@ -49,8 +50,9 @@ class ApprovalConflictError(Exception):
 class ActionFailedError(Exception):
     """An approved action failed. Approving again retries it.
 
-    Why: Its message is fixed, because the original exception can hold secrets or internal
-    details. The original goes to the log only.
+    Why: The person who approved the action needs to know it failed. Its message only includes the
+    reason for an `IntegrationError`, because other exceptions can hold secrets or internal details.
+    Those go to the log only.
 
     Used by: raised by `ApprovalService.decide`, mapped in `ai_ops.api.errors`.
     """
@@ -79,7 +81,8 @@ class ApprovalService:
     Why: Actions are registered by kind and stored as plain data, so a proposal holds no code
     and could later be saved in a database.
 
-    shortcut: approvals are lost on restart, save them in SQL when records move there.
+    shortcut: approvals are lost on restart while records persist, so a pending change must be
+    proposed again after a restart, save them in SQL for a real deployment.
 
     Used by: `ai_ops.api.app.create_app`, and the modules listed in the module docstring.
     """
@@ -200,7 +203,9 @@ class ApprovalService:
                 "approved action failed",
                 extra={"approval_id": approval.id, "tool": approval.kind},
             )
-            raise ActionFailedError("The approved action failed. It can be retried.") from exc
+            # Only errors written to be shown get through. Any other text could hold a secret.
+            reason = str(exc) if isinstance(exc, IntegrationError) else "An internal error occurred"
+            raise ActionFailedError(f"The approved action failed: {reason}.") from exc
         approval.status = "executed"
         self._log_outcome(approval)
         return approval
